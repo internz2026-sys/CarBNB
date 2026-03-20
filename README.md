@@ -1,36 +1,186 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# carBNB
 
-## Getting Started
+carBNB is a modern peer-to-peer car sharing platform built with Next.js, Prisma, Tailwind CSS, and PostgreSQL. The project includes a marketing landing page, public vehicle detail flow, role-based authentication screens, and an admin workspace for managing the marketplace.
 
-First, run the development server:
+## System Overview
+
+This repository currently contains:
+
+- a public landing page for renters and hosts
+- a public car listing details page
+- separate log-in and sign-up experiences for customers and car owners/hosts
+- an admin dashboard and management pages for owners, listings, bookings, accounting, availability, reports, and settings
+- a local PostgreSQL-ready Prisma schema for the system data model
+- a design system documented in `DESIGN.md`
+
+## Core Features
+
+- Marketing homepage with scroll-based reveal animations
+- Featured vehicle cards and public listing detail page
+- Role-aware auth UI for:
+  - customer
+  - car owner / host
+- Admin pages for:
+  - dashboard
+  - owners
+  - car listings
+  - bookings
+  - accounting
+  - availability calendar
+  - reports
+  - settings
+- Prisma schema for:
+  - users
+  - owners
+  - customers
+  - car listings
+  - bookings
+  - accounting entries
+  - payouts
+  - availability rules and exceptions
+
+## Tech Stack
+
+- Next.js 16
+- React 19
+- TypeScript
+- Tailwind CSS 4
+- Prisma 7
+- PostgreSQL
+- shadcn/ui style component setup
+- Lucide React icons
+
+## Project Structure
+
+```text
+app/
+  (admin)/           Admin workspace routes
+  (auth)/            Log-in and sign-up routes
+  listings/[id]/     Public listing detail route
+  page.tsx           Landing page
+
+components/
+  layout/            Shared admin shell components
+  marketing/         Landing page and reveal components
+  ui/                Reusable UI primitives
+
+lib/
+  data/              Mock data for the current UI
+  db.ts              Shared Prisma client helper
+
+prisma/
+  schema.prisma      PostgreSQL schema
+```
+
+## Design System
+
+The interface styling follows the shared design language documented in `DESIGN.md`, including:
+
+- Manrope for editorial headlines
+- Inter for body and interface text
+- layered soft-surface backgrounds
+- deep blue primary actions
+- glass and elevated card treatments
+- responsive admin and marketplace layouts
+
+## Local Setup
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment variables
+
+Copy `.env.example` to `.env` and update it if needed:
+
+```bash
+DATABASE_URL="postgresql://postgres:password123@localhost:5432/carbnb_admin?schema=public"
+```
+
+### 3. Start PostgreSQL
+
+You can use your own local PostgreSQL install, or the included Docker container.
+
+Start the included Docker database with:
+
+```bash
+npm run db:up
+```
+
+Default Docker database values:
+
+- host: `localhost`
+- port: `5432`
+- user: `postgres`
+- password: `password123`
+- database: `carbnb_admin`
+
+Stop it with:
+
+```bash
+npm run db:down
+```
+
+### 4. Prepare Prisma
+
+```bash
+npm run db:generate
+npm run db:migrate
+```
+
+Additional Prisma tools:
+
+```bash
+npm run db:push
+npm run db:studio
+npm run db:validate
+```
+
+## Running the App
+
+Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Or on Windows:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+run.bat
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Open the app at:
 
-## Learn More
+- `http://localhost:3000/` for the landing page
+- `http://localhost:3000/login` for log-in
+- `http://localhost:3000/signup` for sign-up
+- `http://localhost:3000/dashboard` for the admin dashboard
 
-To learn more about Next.js, take a look at the following resources:
+## Current Data Layer Status
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The project is prepared for PostgreSQL through Prisma, but much of the current UI still renders from local mock data while the visual flows are being finalized. The shared Prisma client helper is available in `lib/db.ts` for the next step of wiring pages to the database.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment Notes
 
-## Deploy on Vercel
+For local development, PostgreSQL on `localhost` is fine.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+For production hosting, a Vercel deployment cannot connect to your machine's local database. Use a hosted or publicly reachable PostgreSQL instance for deployment, such as:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Supabase Postgres
+- Neon
+- Railway
+- a self-managed VPS with PostgreSQL
+
+## Branching
+
+The repository is prepared to use:
+
+- `main` for stable project history
+- `feature` for active development work
+
+## License
+
+This project is currently maintained as a private/internal system unless you choose to publish it under a specific license.

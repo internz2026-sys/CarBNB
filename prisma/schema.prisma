@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User / Admin
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("ADMIN")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Owners
+model Owner {
+  id            String   @id @default(cuid())
+  fullName      String
+  contactNumber String
+  email         String   @unique
+  address       String
+  status        String   @default("PENDING") // VERIFIED, PENDING, SUSPENDED
+  remarks       String?
+  bankDetails   String?
+  carsCount     Int      @default(0)
+  totalEarnings Float    @default(0)
+  
+  cars          CarListing[]
+  bookings      Booking[]
+  ownerPayouts  OwnerPayout[]
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model CarListing {
+  id                  String   @id @default(cuid())
+  ownerId             String
+  owner               Owner    @relation(fields: [ownerId], references: [id])
+  plateNumber         String   @unique
+  brand               String
+  model               String
+  year                Int
+  color               String
+  transmission        String   // AUTOMATIC, MANUAL
+  fuelType            String   // GASOLINE, DIESEL, ELECTRIC, HYBRID
+  seatingCapacity     Int
+  location            String
+  dailyPrice          Float
+  description         String?
+  photos              String[]
+  status              String   @default("PENDING_APPROVAL") // ACTIVE, INACTIVE, MAINTENANCE, BOOKED, PENDING_APPROVAL
+  availabilitySummary String?
+  notes               String?
+  
+  bookings            Booking[]
+  availabilityRules   CarAvailabilityRule[]
+  exceptions          CarAvailabilityException[]
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Customer {
+  id            String   @id @default(cuid())
+  fullName      String
+  contactNumber String
+  email         String   @unique
+  address       String?
+  totalBookings Int      @default(0)
+  
+  bookings      Booking[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Booking {
+  id              String   @id @default(cuid())
+  referenceNumber String   @unique
+  
+  customerId      String
+  customer        Customer @relation(fields: [customerId], references: [id])
+  customerName    String
+  
+  carListingId    String
+  carListing      CarListing @relation(fields: [carListingId], references: [id])
+  carName         String
+  carPhoto        String?
+  plateNumber     String
+  seatingCapacity Int
+  
+  ownerId         String
+  owner           Owner    @relation(fields: [ownerId], references: [id])
+  ownerName       String
+  
+  pickupDate      DateTime
+  returnDate      DateTime
+  
+  totalAmount     Float
+  platformFee     Float
+  ownerPayout     Float
+  
+  status          String   @default("PENDING") // PENDING, CONFIRMED, ONGOING, COMPLETED, CANCELLED, REJECTED
+  paymentStatus   String   @default("UNPAID")  // UNPAID, PARTIALLY_PAID, PAID, REFUNDED
+  
+  accountingEntries AccountingEntry[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model CarAvailabilityRule {
+  id           String     @id @default(cuid())
+  carListingId String
+  carListing   CarListing @relation(fields: [carListingId], references: [id])
+  dayOfWeek    String     // MONDAY, TUESDAY...
+  isAvailable  Boolean    @default(true)
+  startTime    String?    // e.g., "08:00"
+  endTime      String?    // e.g., "18:00"
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model CarAvailabilityException {
+  id           String     @id @default(cuid())
+  carListingId String
+  carListing   CarListing @relation(fields: [carListingId], references: [id])
+  date         DateTime
+  isAvailable  Boolean    @default(false)
+  reason       String?
+
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+}
+
+model AccountingEntry {
+  id            String   @id @default(cuid())
+  bookingId     String
+  booking       Booking  @relation(fields: [bookingId], references: [id])
+  bookingRef    String
+  customerName  String
+  carName       String
+  ownerName     String
+  
+  bookingAmount Float
+  platformFee   Float
+  ownerPayout   Float
+  
+  paymentStatus String
+  payoutStatus  String   // PENDING, PROCESSING, RELEASED, FAILED
+  date          DateTime
+  transactionType String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model OwnerPayout {
+  id                 String   @id @default(cuid())
+  ownerId            String
+  owner              Owner    @relation(fields: [ownerId], references: [id])
+  ownerName          String
+  totalEarnings      Float
+  platformCommission Float
+  netPayout          Float
+  payoutMethod       String
+  payoutStatus       String
+  dateReleased       DateTime?
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
+
+model ActivityLogEntry {
+  id          String   @id @default(cuid())
+  action      String
+  description String
+  type        String   // system, owner, car, booking
+  timestamp   DateTime @default(now())
+}
