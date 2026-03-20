@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import Image from "next/image";
 import Link from "next/link";
@@ -140,8 +141,10 @@ function initialsFor(name: string) {
 }
 
 export default async function LandingPage() {
-  const cookieStore = await cookies();
-  const mockRole = cookieStore.get("mock_role")?.value;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const mockRole = user?.user_metadata?.role;
+  const fullName = user?.user_metadata?.fullName || (mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera");
 
   return (
     <div className="min-h-screen bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
@@ -184,14 +187,14 @@ export default async function LandingPage() {
 
           {mockRole === "customer" ? (
             <UserProfileDropdown
-              name="Jamie Cruz"
+              name={fullName}
               role="Customer"
               imageUrl="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
               onLogoutHref="/login"
             />
           ) : mockRole === "host" ? (
             <UserProfileDropdown
-              name="Alex Rivera"
+              name={fullName}
               role="Host Account"
               imageUrl="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80"
               onLogoutHref="/login"

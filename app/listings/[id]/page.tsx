@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import Image from "next/image";
@@ -94,8 +95,10 @@ export default async function ListingDetailPage({
   params,
 }: ListingDetailPageProps) {
   const { id } = await params;
-  const cookieStore = await cookies();
-  const mockRole = cookieStore.get("mock_role")?.value;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const mockRole = user?.user_metadata?.role;
+  const fullName = user?.user_metadata?.fullName || (mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera");
 
   const car = carListings.find((entry) => entry.id === id);
 
@@ -149,7 +152,7 @@ export default async function ListingDetailPage({
             </button>
             {mockRole ? (
               <UserProfileDropdown
-                name={mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera"}
+                name={fullName}
                 role={mockRole === "customer" ? "Customer" : "Host Account"}
                 imageUrl={mockRole === "customer"
                   ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"

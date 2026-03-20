@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 
+import { loginWithEmailPassword } from "@/app/actions/auth";
+
 export const roleContent = {
   host: {
     badge: "Host Portal",
@@ -60,7 +62,7 @@ export function RoleAuthPanel({ role, redirectUrl }: { role: RoleKey; redirectUr
     ? `/signup?callbackUrl=${encodeURIComponent(redirectUrl)}#${role}`
     : config.signUpHref;
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
@@ -75,11 +77,17 @@ export function RoleAuthPanel({ role, redirectUrl }: { role: RoleKey; redirectUr
       return;
     }
 
-    // Simulate an authentication delay for a more authentic feel
-    setTimeout(() => {
-      document.cookie = `mock_role=${role}; path=/; max-age=86400`;
-      router.push(finalSignInHref);
-    }, 800);
+    const { error } = await loginWithEmailPassword(formData);
+
+    if (error) {
+      setError("Invalid login credentials.");
+      setIsLoading(false);
+      return;
+    }
+
+    // Set the legacy visual state so headers know which avatar to display
+    document.cookie = `mock_role=${role}; path=/; max-age=86400`;
+    router.push(finalSignInHref);
   };
 
   return (

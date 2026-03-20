@@ -1,12 +1,15 @@
 import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Plus, CheckCircle2, MessageCircle } from "lucide-react";
 
 export default async function BookingConfirmation() {
-  const cookieStore = await cookies();
-  const mockRole = cookieStore.get("mock_role")?.value;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const mockRole = user?.user_metadata?.role;
+  const fullName = user?.user_metadata?.fullName || (mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera");
 
   return (
     <div className="min-h-screen bg-surface-container-low text-on-surface pb-24 font-sans antialiased">
@@ -22,7 +25,7 @@ export default async function BookingConfirmation() {
           </button>
           {mockRole ? (
             <UserProfileDropdown
-              name={mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera"}
+              name={fullName}
               role={mockRole === "customer" ? "Customer" : "Host Account"}
               imageUrl={mockRole === "customer"
                 ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"

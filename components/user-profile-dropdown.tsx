@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { LogOut, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { logout } from "@/app/actions/auth";
 
 interface UserProfileDropdownProps {
   name: string;
@@ -78,7 +79,8 @@ export function UserProfileDropdown({
             </Link>
             <Link
               href={onLogoutHref}
-              onClick={() => {
+              onClick={async () => {
+                await logout();
                 document.cookie = "mock_role=; path=/; max-age=0";
                 setIsOpen(false);
               }}

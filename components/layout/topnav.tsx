@@ -1,10 +1,13 @@
 import { cookies } from "next/headers";
+import { createClient } from "@/lib/supabase/server";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import { Bell, MessageSquareMore, Search } from "lucide-react";
 
 export async function Topnav() {
-  const cookieStore = await cookies();
-  const mockRole = cookieStore.get("mock_role")?.value;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const mockRole = user?.user_metadata?.role;
+  const fullName = user?.user_metadata?.fullName || (mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera");
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 xl:left-[18rem]">
@@ -41,7 +44,7 @@ export async function Topnav() {
               </span>
               {mockRole ? (
                 <UserProfileDropdown
-                  name={mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera"}
+                  name={fullName}
                   role={mockRole === "customer" ? "Customer" : "Host Account"}
                   imageUrl={mockRole === "customer" 
                     ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80" 
