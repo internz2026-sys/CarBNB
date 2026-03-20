@@ -89,6 +89,7 @@ export function RoleSignupPanel({
 
     // Set the legacy visual state so headers know which avatar to display until phase sync
     document.cookie = `mock_role=${role.id}; path=/; max-age=86400`
+    router.refresh();
     router.push(finalActionHref)
   }
 

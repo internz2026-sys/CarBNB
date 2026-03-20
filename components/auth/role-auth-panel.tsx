@@ -87,6 +87,7 @@ export function RoleAuthPanel({ role, redirectUrl }: { role: RoleKey; redirectUr
 
     // Set the legacy visual state so headers know which avatar to display
     document.cookie = `mock_role=${role}; path=/; max-age=86400`;
+    router.refresh();
     router.push(finalSignInHref);
   };
 
