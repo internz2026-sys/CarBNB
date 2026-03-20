@@ -13,7 +13,8 @@ const signupRoles = [
     title: "Create a car owner or host account",
     description:
       "Set up your marketplace profile to list vehicles, manage schedules, and track payouts.",
-    namePlaceholder: "Alex Rivera",
+    firstNamePlaceholder: "Alex",
+    lastNamePlaceholder: "Rivera",
     emailPlaceholder: "host@carbnb.com",
     actionHref: "/dashboard",
     actionLabel: "Create Host Account",
@@ -25,7 +26,8 @@ const signupRoles = [
     title: "Create a customer account",
     description:
       "Save favorite cars, manage your trips, and book curated vehicles with confidence.",
-    namePlaceholder: "Jamie Cruz",
+    firstNamePlaceholder: "Jamie",
+    lastNamePlaceholder: "Cruz",
     emailPlaceholder: "traveler@carbnb.com",
     actionHref: "/",
     actionLabel: "Create Customer Account",
@@ -102,9 +104,25 @@ export default function SignupPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4 px-6 pb-8 sm:px-8">
-                  <div className="space-y-2">
-                    <Label htmlFor={`${role.id}-name`}>Full Name</Label>
-                    <Input id={`${role.id}-name`} placeholder={role.namePlaceholder} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor={`${role.id}-first-name`}>First Name</Label>
+                      <Input id={`${role.id}-first-name`} placeholder={role.firstNamePlaceholder} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`${role.id}-last-name`}>Last Name</Label>
+                      <Input id={`${role.id}-last-name`} placeholder={role.lastNamePlaceholder} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-4">
+                    <div className="col-span-3 space-y-2">
+                      <Label htmlFor={`${role.id}-birthday`}>Birthday</Label>
+                      <Input id={`${role.id}-birthday`} type="date" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`${role.id}-age`}>Age</Label>
+                      <Input id={`${role.id}-age`} type="number" min="18" max="120" placeholder="25" />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor={`${role.id}-email`}>Email</Label>
