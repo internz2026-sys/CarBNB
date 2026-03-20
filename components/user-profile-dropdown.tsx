@@ -53,8 +53,8 @@ export function UserProfileDropdown({
             </AvatarFallback>
           </Avatar>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="font-normal">
+        <DropdownMenuContent align="end" className="w-56" aria-label="User profile options">
+          <DropdownMenuLabel className="font-normal" aria-hidden="true">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none text-on-surface">{name}</p>
               <p className="text-xs leading-none text-on-surface-variant">{role}</p>
