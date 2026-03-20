@@ -126,7 +126,7 @@ const testimonials = [
   },
 ];
 
-const partnerNames = ["ALLIANZ", "GCash", "VISA", "Grab", "Maya"];
+
 
 function initialsFor(name: string) {
   return name
@@ -337,24 +337,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="bg-surface-container-low px-6 py-12">
-          <div className="mx-auto max-w-7xl">
-            <ScrollReveal>
-              <p className="text-center text-sm font-bold uppercase tracking-[0.32em] text-on-surface-variant/70">
-                Trusted by mobility and payments leaders
-              </p>
-            </ScrollReveal>
-            <div className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-              {partnerNames.map((partner, index) => (
-                <ScrollReveal key={partner} delay={index * 70}>
-                  <div className="rounded-[1.5rem] bg-surface-container-lowest px-5 py-4 text-center font-headline text-xl font-bold tracking-[0.08em] text-on-surface/62 shadow-[0_10px_24px_rgb(19_27_46_/_0.05)]">
-                    {partner}
-                  </div>
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
+
 
         <section className="scroll-mt-28 px-6 py-24" id="how-it-works">
           <div className="mx-auto max-w-7xl">
