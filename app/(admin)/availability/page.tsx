@@ -74,7 +74,7 @@ function getRecurringSummary(carId: string) {
   const carRules = availabilityRules.filter((rule) => rule.carListingId === carId);
   const availableRules = DAYS_ORDER.map((day) =>
     carRules.find((rule) => rule.dayOfWeek === day && rule.isAvailable)
-  ).filter(Boolean);
+  ).filter((rule): rule is (typeof carRules)[number] => Boolean(rule));
 
   if (availableRules.length === 0) {
     return "No recurring schedule";
@@ -92,7 +92,7 @@ function getRecurringSummary(carId: string) {
     dayLabel = "Daily";
   } else if (availableRules.length === 5) {
     const weekdayOnly = availableRules.every((rule) =>
-      [
+      rule && [
         DayOfWeek.MONDAY,
         DayOfWeek.TUESDAY,
         DayOfWeek.WEDNESDAY,
@@ -102,9 +102,9 @@ function getRecurringSummary(carId: string) {
     );
 
     dayLabel = weekdayOnly ? "Mon-Fri" : "5 days";
-  } else if (availableRules.length === 1) {
+  } else if (availableRules.length === 1 && availableRules[0]) {
     dayLabel = availableRules[0].dayOfWeek.slice(0, 3);
-  } else {
+  } else if (availableRules.length > 0 && availableRules[0] && availableRules[availableRules.length - 1]) {
     dayLabel = `${availableRules[0].dayOfWeek.slice(0, 3)}-${availableRules[
       availableRules.length - 1
     ].dayOfWeek.slice(0, 3)}`;
