@@ -1,4 +1,5 @@
 import { Bell, MessageSquareMore, Search } from "lucide-react";
+import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 
 export function Topnav() {
   return (
@@ -30,18 +31,16 @@ export function Topnav() {
               <MessageSquareMore className="size-5" />
               <span className="absolute right-3 top-3 size-2 rounded-full bg-error ring-2 ring-surface" />
             </button>
-            <div className="hidden items-center gap-3 sm:flex pl-4 border-l border-outline-variant/30">
-              <div className="flex flex-col items-end">
-                <span className="text-sm font-bold text-on-surface">Hello, Alex</span>
-                <span className="text-[10px] uppercase tracking-wider font-semibold text-primary">Host Account</span>
-              </div>
-              <div className="relative size-10 overflow-hidden rounded-full ring-2 ring-primary ring-offset-2 ring-offset-surface shadow-[0_8px_28px_rgb(19_27_46_/_0.06)]">
-                <img
-                  src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80"
-                  alt="Alex Rivera"
-                  className="h-full w-full object-cover"
-                />
-              </div>
+            <div className="hidden items-center gap-3 sm:flex">
+              <span className="text-[1.15rem] font-semibold tracking-tight text-primary">
+                carBNB
+              </span>
+              <UserProfileDropdown
+                name="Alex Rivera"
+                role="Host Account"
+                imageUrl="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80"
+                onLogoutHref="/login"
+              />
             </div>
           </div>
         </div>

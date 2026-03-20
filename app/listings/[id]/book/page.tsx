@@ -1,3 +1,4 @@
+import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, CalendarDays, MapPin, Plus, CheckCircle2, MessageCircle } from "lucide-react";
@@ -15,19 +16,12 @@ export default function BookingConfirmation() {
           <button className="scale-95 text-on-surface-variant transition-all active:scale-100" type="button">
             <MessageCircle className="size-6 text-on-surface-variant fill-on-surface-variant/20" />
           </button>
-          <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-sm font-bold text-on-surface">Hello, Jamie</span>
-              <span className="text-[10px] uppercase tracking-wider font-semibold text-primary">Customer</span>
-            </div>
-            <Link href="/login" className="relative size-10 overflow-hidden rounded-full ring-2 ring-primary ring-offset-2 ring-offset-surface shadow-[0_8px_28px_rgb(19_27_46_/_0.06)] hover:opacity-90 transition-opacity">
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
-                alt="Jamie Cruz"
-                className="h-full w-full object-cover"
-              />
-            </Link>
-          </div>
+          <UserProfileDropdown
+            name="Jamie Cruz"
+            role="Customer"
+            imageUrl="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
+            onLogoutHref="/login"
+          />
         </div>
       </nav>
 
