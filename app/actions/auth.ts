@@ -25,8 +25,7 @@ export async function logout() {
   await supabase.auth.signOut()
 }
 
-import { PrismaClient } from "@prisma/client"
-const prisma = new PrismaClient()
+import { db } from "@/lib/db"
 
 export async function signupUser(formData: FormData) {
   const role = formData.get("role") as string
@@ -59,7 +58,7 @@ export async function signupUser(formData: FormData) {
   // 2. Sync to Prisma Database
   try {
     if (role === "host") {
-      await prisma.owner.create({
+      await db.owner.create({
         data: {
           email,
           fullName,
@@ -69,7 +68,7 @@ export async function signupUser(formData: FormData) {
         }
       })
     } else {
-      await prisma.customer.create({
+      await db.customer.create({
         data: {
           email,
           fullName,
