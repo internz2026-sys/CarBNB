@@ -177,18 +177,17 @@ export default function LandingPage() {
             </Link>
           </nav>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              className="hidden rounded-full px-4 py-2 text-sm font-semibold text-primary transition hover:bg-surface-container-highest sm:inline-flex"
-              href="#owner-journey"
-            >
-              List Your Car
-            </Link>
-            <Link
-              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-5 py-2.5 text-sm font-semibold text-on-primary shadow-[0_12px_30px_rgb(0_82_204_/_0.22)] transition hover:opacity-95"
-              href="/login"
-            >
-              Sign In
+          <div className="flex items-center gap-3 sm:gap-4 pl-4 border-l border-outline-variant/30">
+            <div className="flex flex-col items-end">
+              <span className="text-sm font-bold text-on-surface">Hello, Jamie</span>
+              <span className="text-[10px] uppercase tracking-wider font-semibold text-primary">Customer</span>
+            </div>
+            <Link href="/login" className="relative size-10 overflow-hidden rounded-full ring-2 ring-primary ring-offset-2 ring-offset-surface shadow-[0_8px_28px_rgb(19_27_46_/_0.06)] hover:opacity-90 transition-opacity">
+              <img
+                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
+                alt="Jamie Cruz"
+                className="h-full w-full object-cover"
+              />
             </Link>
           </div>
         </div>
