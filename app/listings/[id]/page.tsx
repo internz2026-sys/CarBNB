@@ -332,7 +332,7 @@ export default async function ListingDetailPage({
           <div className="flex-1">
             <Link
               className="flex h-14 w-full items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-6 font-headline text-base font-bold text-on-primary shadow-[0_12px_28px_rgb(0_82_204_/_0.2)] transition hover:opacity-95"
-              href={`/listings/${car.id}/book`}
+              href={`/login?callbackUrl=/listings/${car.id}/book`}
             >
               <CalendarDays className="size-5" />
               Reserve Now

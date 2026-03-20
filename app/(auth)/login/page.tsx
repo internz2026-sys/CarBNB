@@ -44,9 +44,14 @@ const roleContent = {
 
 type RoleKey = keyof typeof roleContent;
 
-function RoleAuthPanel({ role }: { role: RoleKey }) {
+function RoleAuthPanel({ role, redirectUrl }: { role: RoleKey; redirectUrl?: string }) {
   const config = roleContent[role];
   const Icon = config.icon;
+  
+  const finalSignInHref = redirectUrl && role === "customer" ? redirectUrl : config.signInHref;
+  const finalSignUpHref = redirectUrl && role === "customer" 
+    ? `/signup?callbackUrl=${encodeURIComponent(redirectUrl)}#${role}` 
+    : config.signUpHref;
 
   return (
     <div className="space-y-6 pt-6">
@@ -84,7 +89,7 @@ function RoleAuthPanel({ role }: { role: RoleKey }) {
       </div>
 
       <div className="space-y-3">
-        <Link className={cn(buttonVariants(), "w-full")} href={config.signInHref}>
+        <Link className={cn(buttonVariants(), "w-full")} href={finalSignInHref}>
           {config.signInLabel}
         </Link>
         <Link
@@ -92,7 +97,7 @@ function RoleAuthPanel({ role }: { role: RoleKey }) {
             buttonVariants({ variant: "outline" }),
             "w-full border-border bg-surface-container-lowest text-primary hover:bg-surface-container"
           )}
-          href={config.signUpHref}
+          href={finalSignUpHref}
         >
           {config.signUpLabel}
         </Link>
@@ -101,7 +106,14 @@ function RoleAuthPanel({ role }: { role: RoleKey }) {
   );
 }
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const { callbackUrl } = await searchParams;
+  const redirectUrl = typeof callbackUrl === "string" ? callbackUrl : undefined;
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -193,7 +205,7 @@ export default function LoginPage() {
                 className="focus-visible:outline-none focus-visible:ring-0"
                 value="customer"
               >
-                <RoleAuthPanel role="customer" />
+                <RoleAuthPanel redirectUrl={redirectUrl} role="customer" />
               </TabsContent>
             </Tabs>
           </CardContent>

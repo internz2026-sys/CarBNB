@@ -35,7 +35,14 @@ const signupRoles = [
   },
 ] as const;
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}) {
+  const { callbackUrl } = await searchParams;
+  const redirectUrl = typeof callbackUrl === "string" ? callbackUrl : undefined;
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto max-w-6xl">
@@ -136,7 +143,7 @@ export default function SignupPage() {
                     <Label htmlFor={`${role.id}-password`}>Password</Label>
                     <Input id={`${role.id}-password`} type="password" />
                   </div>
-                  <Link className={cn(buttonVariants(), "mt-2 w-full")} href={role.actionHref}>
+                  <Link className={cn(buttonVariants(), "mt-2 w-full")} href={redirectUrl && role.id === "customer" ? redirectUrl : role.actionHref}>
                     {role.actionLabel}
                   </Link>
                 </CardContent>
