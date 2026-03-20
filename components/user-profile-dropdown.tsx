@@ -78,7 +78,10 @@ export function UserProfileDropdown({
             </Link>
             <Link
               href={onLogoutHref}
-              onClick={() => setIsOpen(false)}
+              onClick={() => {
+                document.cookie = "mock_role=; path=/; max-age=0";
+                setIsOpen(false);
+              }}
               className="flex w-full cursor-pointer items-center rounded-md px-2 py-1.5 text-sm text-error transition-colors hover:bg-error/10 hover:text-error focus:text-error"
             >
               <LogOut className="mr-2 size-4" />

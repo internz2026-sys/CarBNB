@@ -159,6 +159,39 @@ Open the app at:
 - `http://localhost:3000/signup` for sign-up
 - `http://localhost:3000/dashboard` for the admin dashboard
 
+## Docker
+
+The app now includes a production-style Docker setup for self-hosting and local parity testing.
+
+### Build the container
+
+```bash
+npm run docker:build
+```
+
+### Run the full app stack with Docker Compose
+
+```bash
+npm run docker:up
+```
+
+This starts:
+
+- the Next.js app on `http://localhost:3000`
+- PostgreSQL on `localhost:5432`
+
+Stop it with:
+
+```bash
+npm run docker:down
+```
+
+### Docker files included
+
+- `Dockerfile`: multi-stage Next.js production image
+- `.dockerignore`: keeps the image small and avoids copying local secrets
+- `docker-compose.yml`: runs both the app and PostgreSQL together
+
 ## Current Data Layer Status
 
 The project is prepared for PostgreSQL through Prisma, but much of the current UI still renders from local mock data while the visual flows are being finalized. The shared Prisma client helper is available in `lib/db.ts` for the next step of wiring pages to the database.
@@ -173,6 +206,29 @@ For production hosting, a Vercel deployment cannot connect to your machine's loc
 - Neon
 - Railway
 - a self-managed VPS with PostgreSQL
+
+### Important: Docker and Vercel
+
+This repository can now run in Docker, but Vercel does not deploy your `Dockerfile` as the runtime for a Next.js project.
+
+Use Docker if you want to:
+
+- self-host on a VPS
+- run locally with production-like behavior
+- deploy on platforms that accept container images
+
+Use Vercel if you want to:
+
+- deploy the Next.js app directly from GitHub
+- let Vercel build the app using `npm install` and `npm run build`
+- connect the deployment to a hosted PostgreSQL database
+
+For Vercel, the key requirements are:
+
+- push the repo to GitHub
+- import the repo into Vercel
+- set `DATABASE_URL` in Vercel project environment variables
+- use a hosted PostgreSQL database instead of `localhost`
 
 ## Branching
 

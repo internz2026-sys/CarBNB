@@ -1,0 +1,15 @@
+.git
+.github
+.next
+node_modules
+npm-debug.log*
+README.md
+build.log
+build2.log
+gcm-diagnose.log
+prisma_validate.log
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local

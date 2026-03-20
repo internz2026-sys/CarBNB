@@ -77,6 +77,7 @@ export function RoleAuthPanel({ role, redirectUrl }: { role: RoleKey; redirectUr
 
     // Simulate an authentication delay for a more authentic feel
     setTimeout(() => {
+      document.cookie = `mock_role=${role}; path=/; max-age=86400`;
       router.push(finalSignInHref);
     }, 800);
   };

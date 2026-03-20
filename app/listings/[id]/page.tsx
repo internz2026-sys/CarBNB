@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 import { UserProfileDropdown } from "@/components/user-profile-dropdown";
 import Image from "next/image";
 import Link from "next/link";
@@ -93,6 +94,9 @@ export default async function ListingDetailPage({
   params,
 }: ListingDetailPageProps) {
   const { id } = await params;
+  const cookieStore = await cookies();
+  const mockRole = cookieStore.get("mock_role")?.value;
+
   const car = carListings.find((entry) => entry.id === id);
 
   if (!car) {
@@ -143,12 +147,22 @@ export default async function ListingDetailPage({
             >
               <MessageCircleMore className="size-5" />
             </button>
-            <UserProfileDropdown
-              name="Jamie Cruz"
-              role="Customer"
-              imageUrl="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
-              onLogoutHref="/login"
-            />
+            {mockRole ? (
+              <UserProfileDropdown
+                name={mockRole === "customer" ? "Jamie Cruz" : "Alex Rivera"}
+                role={mockRole === "customer" ? "Customer" : "Host Account"}
+                imageUrl={mockRole === "customer"
+                  ? "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&h=150&q=80"
+                  : "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=150&h=150&q=80"}
+                onLogoutHref="/login"
+              />
+            ) : (
+              <div className="flex items-center gap-4 pl-4 border-l border-outline-variant/30 ml-2">
+                <Link href="/login" className="text-sm font-semibold text-on-surface hover:text-primary transition-colors">
+                  Sign In
+                </Link>
+              </div>
+            )}
 
           </div>
         </div>
