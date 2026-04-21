@@ -12,9 +12,13 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
-import { owners } from "@/lib/data/mock-data";
+import { db } from "@/lib/db";
 import { OwnerStatus } from "@/types";
 import { cn } from "@/lib/utils";
+
+// Admin data must reflect the live DB. Without this, Next.js statically
+// pre-renders the page at build time and new signups won't appear.
+export const dynamic = "force-dynamic";
 
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -22,13 +26,15 @@ const peso = new Intl.NumberFormat("en-PH", {
   maximumFractionDigits: 0,
 });
 
-const statusBadgeStyles = {
+const statusBadgeStyles: Record<string, string> = {
   [OwnerStatus.VERIFIED]: "bg-tertiary-fixed text-on-tertiary-fixed-variant",
   [OwnerStatus.PENDING]: "bg-secondary-container text-on-secondary-fixed-variant",
   [OwnerStatus.SUSPENDED]: "bg-error-container text-on-error-container",
   [OwnerStatus.REJECTED]: "bg-error-container text-on-error-container",
   [OwnerStatus.INACTIVE]: "bg-surface-container-highest text-on-surface-variant",
-} as const;
+};
+
+const defaultStatusBadgeStyle = "bg-surface-container-highest text-on-surface-variant";
 
 function getOwnerInitials(fullName: string) {
   return fullName
@@ -39,7 +45,9 @@ function getOwnerInitials(fullName: string) {
     .toUpperCase();
 }
 
-export default function OwnersPage() {
+export default async function OwnersPage() {
+  const owners = await db.owner.findMany({ orderBy: { createdAt: "desc" } });
+
   const totalOwners = owners.length;
   const verifiedOwners = owners.filter(
     (owner) => owner.status === OwnerStatus.VERIFIED
@@ -49,14 +57,12 @@ export default function OwnersPage() {
     (sum, owner) => sum + owner.totalEarnings,
     0
   );
-  const averageOwnerEarnings = totalOwnerEarnings / totalOwners;
-  const payoutReadyOwners = owners.filter(
-    (owner) => owner.bankDetails || owner.eWalletDetails
-  ).length;
+  const averageOwnerEarnings = totalOwners > 0 ? totalOwnerEarnings / totalOwners : 0;
+  const payoutReadyOwners = owners.filter((owner) => Boolean(owner.bankDetails)).length;
   const needsAttention = owners.filter((owner) =>
-    [OwnerStatus.PENDING, OwnerStatus.SUSPENDED, OwnerStatus.REJECTED].includes(
-      owner.status
-    )
+    (
+      [OwnerStatus.PENDING, OwnerStatus.SUSPENDED, OwnerStatus.REJECTED] as string[]
+    ).includes(owner.status)
   );
 
   const verificationQueue = needsAttention.slice(0, 3);

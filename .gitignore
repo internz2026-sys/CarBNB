@@ -45,3 +45,7 @@ next-env.d.ts
 build.log
 build2.log
 prisma_validate.log
+.env*.local
+
+# Local working doc — not shared to the repo
+BACKLOG.md

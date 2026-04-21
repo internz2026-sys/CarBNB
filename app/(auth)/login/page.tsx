@@ -1,107 +1,15 @@
-import Link from "next/link";
-import { CarFront, ShieldCheck, UserRound } from "lucide-react";
-import { buttonVariants } from "@/components/ui/button";
+import { CarFront } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { cn } from "@/lib/utils";
+import { LoginForm } from "./login-form";
 
-const roleContent = {
-  host: {
-    badge: "Host Portal",
-    title: "Log in as a car owner or host",
-    description:
-      "Access listings, availability, bookings, and payout tools built for marketplace hosts.",
-    emailLabel: "Host Email",
-    emailPlaceholder: "host@carbnb.com",
-    emailDefault: "host@carbnb.com",
-    passwordId: "host-password",
-    emailId: "host-email",
-    signInHref: "/dashboard",
-    signInLabel: "Enter Host Dashboard",
-    signUpHref: "/signup#host",
-    signUpLabel: "Create host account",
-    icon: ShieldCheck,
-  },
-  customer: {
-    badge: "Customer Access",
-    title: "Log in as a customer",
-    description:
-      "Review saved cars, upcoming trips, and marketplace activity from one place.",
-    emailLabel: "Customer Email",
-    emailPlaceholder: "traveler@carbnb.com",
-    emailDefault: "traveler@carbnb.com",
-    passwordId: "customer-password",
-    emailId: "customer-email",
-    signInHref: "/",
-    signInLabel: "Enter Marketplace",
-    signUpHref: "/signup#customer",
-    signUpLabel: "Create customer account",
-    icon: UserRound,
-  },
-} as const;
-
-type RoleKey = keyof typeof roleContent;
-
-function RoleAuthPanel({ role }: { role: RoleKey }) {
-  const config = roleContent[role];
-  const Icon = config.icon;
-
-  return (
-    <div className="space-y-6 pt-6">
-      <div className="rounded-[1.5rem] bg-surface-container p-4 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
-        <div className="flex items-start gap-3">
-          <div className="grid size-11 shrink-0 place-items-center rounded-[1rem] bg-surface-container-lowest text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">
-            <Icon className="size-5" />
-          </div>
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
-              {config.badge}
-            </div>
-            <p className="mt-2 text-sm leading-6 text-on-surface-variant">
-              {config.description}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor={config.emailId}>{config.emailLabel}</Label>
-          <Input
-            defaultValue={config.emailDefault}
-            id={config.emailId}
-            placeholder={config.emailPlaceholder}
-            required
-            type="email"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={config.passwordId}>Password</Label>
-          <Input defaultValue="password123" id={config.passwordId} required type="password" />
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        <Link className={cn(buttonVariants(), "w-full")} href={config.signInHref}>
-          {config.signInLabel}
-        </Link>
-        <Link
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-full border-border bg-surface-container-lowest text-primary hover:bg-surface-container"
-          )}
-          href={config.signUpHref}
-        >
-          {config.signUpLabel}
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-export default function LoginPage() {
+// searchParams is a Promise in Next.js 16, hence the async component.
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ signedUp?: string }>;
+}) {
+  const { signedUp } = await searchParams;
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -169,7 +77,12 @@ export default function LoginPage() {
           </CardHeader>
 
           <CardContent className="px-6 pb-0 sm:px-8">
-            <Tabs className="gap-0" defaultValue="host">
+            {signedUp ? (
+              <div className="mb-4 rounded-[1rem] bg-emerald-50 p-3 text-sm text-emerald-800">
+                Account created. Check your email to confirm, then sign in below.
+              </div>
+            ) : null}
+            <Tabs className="gap-0" defaultValue={signedUp === "customer" ? "customer" : "host"}>
               <TabsList className="grid h-13 w-full grid-cols-2 rounded-full bg-surface-container-highest p-1">
                 <TabsTrigger
                   className="rounded-full border-none text-sm font-semibold text-on-surface-variant after:hidden data-active:bg-surface-container-lowest data-active:text-primary data-active:shadow-[0_8px_18px_rgb(19_27_46_/_0.06)]"
@@ -186,14 +99,14 @@ export default function LoginPage() {
               </TabsList>
 
               <TabsContent className="focus-visible:outline-none focus-visible:ring-0" value="host">
-                <RoleAuthPanel role="host" />
+                <LoginForm role="host" />
               </TabsContent>
 
               <TabsContent
                 className="focus-visible:outline-none focus-visible:ring-0"
                 value="customer"
               >
-                <RoleAuthPanel role="customer" />
+                <LoginForm role="customer" />
               </TabsContent>
             </Tabs>
           </CardContent>

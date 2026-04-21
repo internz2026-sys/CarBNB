@@ -10,7 +10,9 @@ services:
       POSTGRES_PASSWORD: password123
       POSTGRES_DB: carbnb_admin
     ports:
-      - "5432:5432"
+      # Host 5433 -> container 5432. Host port 5433 avoids collision with
+      # a native Postgres that may already be bound to 5432 on Windows.
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

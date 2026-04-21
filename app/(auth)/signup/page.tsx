@@ -2,9 +2,8 @@ import Link from "next/link";
 import { CarFront, ShieldCheck, UserRound } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { SignupForm } from "./signup-form";
 
 const signupRoles = [
   {
@@ -15,7 +14,6 @@ const signupRoles = [
       "Set up your marketplace profile to list vehicles, manage schedules, and track payouts.",
     namePlaceholder: "Alex Rivera",
     emailPlaceholder: "host@carbnb.com",
-    actionHref: "/dashboard",
     actionLabel: "Create Host Account",
     icon: ShieldCheck,
   },
@@ -27,7 +25,6 @@ const signupRoles = [
       "Save favorite cars, manage your trips, and book curated vehicles with confidence.",
     namePlaceholder: "Jamie Cruz",
     emailPlaceholder: "traveler@carbnb.com",
-    actionHref: "/",
     actionLabel: "Create Customer Account",
     icon: UserRound,
   },
@@ -101,26 +98,13 @@ export default function SignupPage() {
                   </CardDescription>
                 </CardHeader>
 
-                <CardContent className="space-y-4 px-6 pb-8 sm:px-8">
-                  <div className="space-y-2">
-                    <Label htmlFor={`${role.id}-name`}>Full Name</Label>
-                    <Input id={`${role.id}-name`} placeholder={role.namePlaceholder} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`${role.id}-email`}>Email</Label>
-                    <Input
-                      id={`${role.id}-email`}
-                      placeholder={role.emailPlaceholder}
-                      type="email"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor={`${role.id}-password`}>Password</Label>
-                    <Input id={`${role.id}-password`} type="password" />
-                  </div>
-                  <Link className={cn(buttonVariants(), "mt-2 w-full")} href={role.actionHref}>
-                    {role.actionLabel}
-                  </Link>
+                <CardContent className="px-6 pb-8 sm:px-8">
+                  <SignupForm
+                    emailPlaceholder={role.emailPlaceholder}
+                    namePlaceholder={role.namePlaceholder}
+                    role={role.id}
+                    submitLabel={role.actionLabel}
+                  />
                 </CardContent>
               </Card>
             );

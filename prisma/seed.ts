@@ -1,19 +1,27 @@
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+config({ path: ".env" });
+
 import { PrismaClient } from '@prisma/client'
-import { 
-  owners, 
-  carListings, 
-  customers, 
-  bookings, 
-  availabilityRules, 
-  availabilityExceptions, 
+import { PrismaPg } from '@prisma/adapter-pg'
+import {
+  owners,
+  carListings,
+  customers,
+  bookings,
+  availabilityRules,
+  availabilityExceptions,
   accountingEntries,
   ownerPayouts,
   activityLog
 } from '../lib/data/mock-data'
 
-process.env.DATABASE_URL = "postgresql://postgres:password123@localhost:5432/carbnb_admin?schema=public";
-const prisma = new PrismaClient()
+const connectionString = process.env.DATABASE_URL
+if (!connectionString) {
+  throw new Error("DATABASE_URL is not set — check .env.local")
+}
+const adapter = new PrismaPg({ connectionString })
+const prisma = new PrismaClient({ adapter, log: ["error"] })
 
 async function main() {
   console.log('DATABASE_URL:', process.env.DATABASE_URL)
@@ -30,6 +38,20 @@ async function main() {
   await prisma.customer.deleteMany()
   await prisma.owner.deleteMany()
   await prisma.user.deleteMany()
+
+  // 0. Seed admin User row so `admin@carbnb.com` can log in as ADMIN.
+  // The matching Supabase Auth user must be created manually via the Supabase
+  // dashboard (Auth → Users → Add user) with this same email. Role resolution
+  // happens via DB lookup in proxy.ts + loginAction; the password field below
+  // is unused (Supabase Auth holds the real credentials).
+  await prisma.user.create({
+    data: {
+      email: "admin@carbnb.com",
+      name: "Admin",
+      password: "managed-by-supabase-auth",
+      role: "ADMIN",
+    },
+  })
 
   // 1. Owners
   for (const o of owners) {
