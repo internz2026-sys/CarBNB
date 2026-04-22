@@ -12,6 +12,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { OwnerStatus } from "@/types";
 import { cn } from "@/lib/utils";
@@ -19,6 +20,13 @@ import { cn } from "@/lib/utils";
 // Admin data must reflect the live DB. Without this, Next.js statically
 // pre-renders the page at build time and new signups won't appear.
 export const dynamic = "force-dynamic";
+
+// URL-friendly status keys → canonical enum values stored in DB
+const STATUS_FILTERS: { key: string; label: string; value: OwnerStatus }[] = [
+  { key: "pending", label: "Pending", value: OwnerStatus.PENDING },
+  { key: "verified", label: "Verified", value: OwnerStatus.VERIFIED },
+  { key: "suspended", label: "Suspended", value: OwnerStatus.SUSPENDED },
+];
 
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -45,25 +53,53 @@ function getOwnerInitials(fullName: string) {
     .toUpperCase();
 }
 
-export default async function OwnersPage() {
-  const owners = await db.owner.findMany({ orderBy: { createdAt: "desc" } });
+export default async function OwnersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ search?: string; status?: string }>;
+}) {
+  const { search, status } = await searchParams;
+  const trimmedSearch = search?.trim() ?? "";
+  const activeStatus = STATUS_FILTERS.find((s) => s.key === status);
 
-  const totalOwners = owners.length;
-  const verifiedOwners = owners.filter(
+  // Filtered owners drive the directory list; unfiltered drive the top-level
+  // stats + verification queue so those metrics stay consistent as admins
+  // narrow down who they're browsing.
+  const where: Prisma.OwnerWhereInput = {};
+  if (trimmedSearch) {
+    where.OR = [
+      { fullName: { contains: trimmedSearch, mode: "insensitive" } },
+      { email: { contains: trimmedSearch, mode: "insensitive" } },
+      { contactNumber: { contains: trimmedSearch } },
+    ];
+  }
+  if (activeStatus) {
+    where.status = activeStatus.value;
+  }
+
+  const [allOwners, filteredOwners] = await Promise.all([
+    db.owner.findMany({ orderBy: { createdAt: "desc" } }),
+    db.owner.findMany({ where, orderBy: { createdAt: "desc" } }),
+  ]);
+
+  const totalOwners = allOwners.length;
+  const verifiedOwners = allOwners.filter(
     (owner) => owner.status === OwnerStatus.VERIFIED
   ).length;
-  const totalFleetUnits = owners.reduce((sum, owner) => sum + owner.carsCount, 0);
-  const totalOwnerEarnings = owners.reduce(
+  const totalFleetUnits = allOwners.reduce((sum, owner) => sum + owner.carsCount, 0);
+  const totalOwnerEarnings = allOwners.reduce(
     (sum, owner) => sum + owner.totalEarnings,
     0
   );
   const averageOwnerEarnings = totalOwners > 0 ? totalOwnerEarnings / totalOwners : 0;
-  const payoutReadyOwners = owners.filter((owner) => Boolean(owner.bankDetails)).length;
-  const needsAttention = owners.filter((owner) =>
+  const payoutReadyOwners = allOwners.filter((owner) => Boolean(owner.bankDetails)).length;
+  const needsAttention = allOwners.filter((owner) =>
     (
       [OwnerStatus.PENDING, OwnerStatus.SUSPENDED, OwnerStatus.REJECTED] as string[]
     ).includes(owner.status)
   );
+
+  const isFiltered = Boolean(trimmedSearch || activeStatus);
 
   const verificationQueue = needsAttention.slice(0, 3);
 
@@ -164,7 +200,7 @@ export default async function OwnersPage() {
               </div>
               <div className="flex items-center gap-2 text-base font-semibold text-on-error-container">
                 <AlertTriangle className="size-4" />
-                <span>{owners.filter((owner) => owner.status === OwnerStatus.PENDING).length} pending review</span>
+                <span>{allOwners.filter((owner) => owner.status === OwnerStatus.PENDING).length} pending review</span>
               </div>
             </article>
           </div>
@@ -279,34 +315,77 @@ export default async function OwnersPage() {
                 </div>
 
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div className="relative w-full max-w-md">
+                  <form
+                    action="/owners"
+                    className="relative w-full max-w-md"
+                    method="GET"
+                  >
+                    {activeStatus ? (
+                      <input name="status" type="hidden" value={activeStatus.key} />
+                    ) : null}
                     <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
                     <input
                       className="h-11 w-full rounded-full bg-surface-container-low pl-11 pr-4 text-sm text-on-surface outline-none"
+                      defaultValue={trimmedSearch}
+                      name="search"
                       placeholder="Search owners, email, or contact number..."
                       type="text"
                     />
-                  </div>
+                  </form>
 
                   <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <button className="rounded-full bg-surface-container-highest px-4 py-2 text-sm font-semibold text-on-surface">
+                    <Link
+                      className={cn(
+                        "rounded-full px-4 py-2 text-sm font-semibold",
+                        !activeStatus
+                          ? "bg-surface-container-highest text-on-surface"
+                          : "bg-surface text-on-surface-variant"
+                      )}
+                      href={{
+                        pathname: "/owners",
+                        query: trimmedSearch ? { search: trimmedSearch } : {},
+                      }}
+                    >
                       All Status
-                    </button>
-                    <button className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-on-surface-variant">
-                      Pending
-                    </button>
-                    <button className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-on-surface-variant">
-                      Verified
-                    </button>
-                    <button className="rounded-full bg-surface px-4 py-2 text-sm font-semibold text-on-surface-variant">
-                      Suspended
-                    </button>
+                    </Link>
+                    {STATUS_FILTERS.map((opt) => {
+                      const active = activeStatus?.key === opt.key;
+                      const query: Record<string, string> = { status: opt.key };
+                      if (trimmedSearch) query.search = trimmedSearch;
+                      return (
+                        <Link
+                          className={cn(
+                            "rounded-full px-4 py-2 text-sm font-semibold",
+                            active
+                              ? "bg-surface-container-highest text-on-surface"
+                              : "bg-surface text-on-surface-variant"
+                          )}
+                          href={{ pathname: "/owners", query }}
+                          key={opt.key}
+                        >
+                          {opt.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
 
+              {filteredOwners.length === 0 ? (
+                <div className="rounded-xl bg-surface-container-low p-8 text-center">
+                  <p className="text-base font-semibold text-on-surface">
+                    No owners match your filters
+                  </p>
+                  <p className="mt-1 text-sm text-on-surface-variant">
+                    {isFiltered
+                      ? "Try clearing the search or status filter above."
+                      : "No owners exist yet — add one using the button above."}
+                  </p>
+                </div>
+              ) : null}
+
               <div className="space-y-4 md:hidden">
-                {owners.map((owner) => (
+                {filteredOwners.map((owner) => (
                   <article
                     key={owner.id}
                     className="rounded-xl bg-surface px-4 py-4 shadow-[0_8px_28px_rgb(19_27_46_/_0.06)]"
@@ -385,7 +464,7 @@ export default async function OwnersPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {owners.map((owner, index) => (
+                    {filteredOwners.map((owner, index) => (
                       <tr
                         key={owner.id}
                         className={cn(

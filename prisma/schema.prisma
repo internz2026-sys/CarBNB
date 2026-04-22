@@ -19,16 +19,18 @@ model User {
 
 // Owners
 model Owner {
-  id            String   @id @default(cuid())
-  fullName      String
-  contactNumber String
-  email         String   @unique
-  address       String
-  status        String   @default("PENDING") // VERIFIED, PENDING, SUSPENDED
-  remarks       String?
-  bankDetails   String?
-  carsCount     Int      @default(0)
-  totalEarnings Float    @default(0)
+  id                 String   @id @default(cuid())
+  fullName           String
+  contactNumber      String
+  email              String   @unique
+  address            String
+  status             String   @default("PENDING") // VERIFIED, PENDING, SUSPENDED
+  remarks            String?
+  bankDetails        String?
+  idDocumentUrl      String?
+  licenseDocumentUrl String?
+  carsCount          Int      @default(0)
+  totalEarnings      Float    @default(0)
   
   cars          CarListing[]
   bookings      Booking[]

@@ -1,18 +1,23 @@
 import { PageHeader } from "@/components/layout/page-header";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, User, Phone, MapPin, Mail, CreditCard, Clock, FileText, CheckCircle2, XCircle, AlertTriangle, Car, Plus } from "lucide-react";
+import { ArrowLeft, Phone, MapPin, Mail, CreditCard, Clock, FileText, AlertTriangle, Car, Plus, ExternalLink } from "lucide-react";
 import Link from "next/link";
-import { owners, carListings } from "@/lib/data/mock-data";
+import { notFound } from "next/navigation";
+import { db } from "@/lib/db";
+import { getOwnerDocumentSignedUrl } from "@/lib/owner-documents";
 import { OwnerStatus } from "@/types";
 import { format } from "date-fns";
 import Image from "next/image";
+import { OwnerStatusActions } from "./status-actions";
 
-// Helper to get status badge colors
-function getStatusBadge(status: OwnerStatus) {
+// Owner admin data reflects live DB; no static pre-render.
+export const dynamic = "force-dynamic";
+
+function getStatusBadge(status: string) {
   switch (status) {
     case OwnerStatus.VERIFIED:
       return <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border-emerald-500/20">{status}</Badge>;
@@ -26,11 +31,26 @@ function getStatusBadge(status: OwnerStatus) {
   }
 }
 
-export default async function OwnerDetailPage({ params }: { params: { id: string } }) {
-  // In a real app we'd fetch this from the DB using params.id
-  // For the MVP with mock data, we just grab the first owner or the one matching ID
-  const owner = owners.find(o => o.id === params.id) || owners[0];
-  const ownerCars = carListings.filter(c => c.ownerId === owner.id);
+export default async function OwnerDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+
+  const [owner, ownerCars] = await Promise.all([
+    db.owner.findUnique({ where: { id } }),
+    db.carListing.findMany({ where: { ownerId: id }, orderBy: { createdAt: "desc" } }),
+  ]);
+
+  if (!owner) {
+    notFound();
+  }
+
+  const [idSignedUrl, licenseSignedUrl] = await Promise.all([
+    getOwnerDocumentSignedUrl(owner.idDocumentUrl),
+    getOwnerDocumentSignedUrl(owner.licenseDocumentUrl),
+  ]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -42,17 +62,17 @@ export default async function OwnerDetailPage({ params }: { params: { id: string
       </div>
 
       <PageHeader
-        title="Owner Details"
         description={`Manage profile, verify documents, and view listed cars for ${owner.fullName}.`}
+        title="Owner Details"
       >
-        <div className="flex gap-2">
-          {owner.status === OwnerStatus.PENDING && (
-            <Button className="bg-emerald-600 hover:bg-emerald-700">
-              <CheckCircle2 className="w-4 h-4 mr-2" />
-              Approve Owner
-            </Button>
-          )}
-          <Button variant="outline">Edit Details</Button>
+        <div className="flex flex-col items-end gap-3">
+          <OwnerStatusActions ownerId={owner.id} status={owner.status} />
+          <Link
+            className={buttonVariants({ variant: "outline" })}
+            href={`/owners/${owner.id}/edit`}
+          >
+            Edit Details
+          </Link>
         </div>
       </PageHeader>
 
@@ -187,41 +207,109 @@ export default async function OwnerDetailPage({ params }: { params: { id: string
             </TabsContent>
             
             <TabsContent value="documents" className="space-y-4 focus-visible:outline-none focus-visible:ring-0">
-              <h3 className="text-lg font-semibold tracking-tight">Onboarding Documents</h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold tracking-tight">Onboarding Documents</h3>
+                <Link
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                  href={`/owners/${owner.id}/edit`}
+                >
+                  Upload / Replace
+                </Link>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Card>
-                  <CardHeader className="p-4 pb-2 border-b border-border">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      Government ID
-                      <Badge variant="outline" className="text-emerald-600 border-emerald-600">Verified</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-4 bg-muted/20">
-                    <div className="aspect-[1.6/1] rounded-lg border border-dashed flex flex-col items-center justify-center text-muted-foreground bg-background">
-                      <FileText className="w-8 h-8 mb-2 opacity-50" />
-                      <span className="text-xs">ID-Front.jpg</span>
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card>
-                  <CardHeader className="p-4 pb-2 border-b border-border">
-                    <CardTitle className="text-sm font-medium flex items-center justify-between">
-                      Driver's License
-                      <Badge variant="secondary">Pending Review</Badge>
-                    </CardTitle>
-                  </CardHeader>
-                   <CardContent className="p-4 bg-muted/20">
-                    <div className="aspect-[1.6/1] rounded-lg border border-dashed flex flex-col items-center justify-center text-muted-foreground bg-background">
-                      <FileText className="w-8 h-8 mb-2 opacity-50" />
-                      <span className="text-xs">License.pdf</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                <DocumentCard
+                  signedUrl={idSignedUrl}
+                  storedPath={owner.idDocumentUrl}
+                  title="Government ID"
+                />
+                <DocumentCard
+                  signedUrl={licenseSignedUrl}
+                  storedPath={owner.licenseDocumentUrl}
+                  title="Driver's License"
+                />
               </div>
             </TabsContent>
           </Tabs>
         </div>
       </div>
     </div>
+  );
+}
+
+function DocumentCard({
+  title,
+  storedPath,
+  signedUrl,
+}: {
+  title: string;
+  storedPath: string | null;
+  signedUrl: string | null;
+}) {
+  const hasDoc = Boolean(storedPath);
+  const extension = storedPath?.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = ["jpg", "jpeg", "png", "webp"].includes(extension);
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2 border-b border-border">
+        <CardTitle className="text-sm font-medium flex items-center justify-between">
+          {title}
+          {hasDoc ? (
+            <Badge className="bg-emerald-500/15 text-emerald-700 border-emerald-500/20">
+              Uploaded
+            </Badge>
+          ) : (
+            <Badge variant="secondary">Not uploaded</Badge>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 bg-muted/20">
+        {hasDoc && signedUrl ? (
+          isImage ? (
+            <a
+              className="block"
+              href={signedUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <div className="aspect-[1.6/1] relative rounded-lg border border-dashed bg-background overflow-hidden">
+                <Image
+                  alt={title}
+                  className="object-contain"
+                  fill
+                  src={signedUrl}
+                  unoptimized
+                />
+              </div>
+              <div className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                <ExternalLink className="w-3 h-3" />
+                Open in new tab
+              </div>
+            </a>
+          ) : (
+            <a
+              className="block"
+              href={signedUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              <div className="aspect-[1.6/1] rounded-lg border border-dashed bg-background flex flex-col items-center justify-center text-muted-foreground">
+                <FileText className="w-8 h-8 mb-2" />
+                <span className="text-xs font-medium uppercase">{extension} file</span>
+                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-primary">
+                  <ExternalLink className="w-3 h-3" />
+                  Open in new tab
+                </span>
+              </div>
+            </a>
+          )
+        ) : (
+          <div className="aspect-[1.6/1] rounded-lg border border-dashed flex flex-col items-center justify-center text-muted-foreground bg-background">
+            <FileText className="w-8 h-8 mb-2 opacity-50" />
+            <span className="text-xs">No document on file</span>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }
