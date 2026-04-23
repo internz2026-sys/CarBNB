@@ -31,11 +31,16 @@ async function requireHost() {
   return owner;
 }
 
-async function requireOwnBooking(bookingId: string, ownerId: string) {
+type BookingRow = NonNullable<Awaited<ReturnType<typeof db.booking.findUnique>>>;
+
+async function requireOwnBooking(
+  bookingId: string,
+  ownerId: string,
+): Promise<{ error: string } | { booking: BookingRow }> {
   const booking = await db.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { error: "Booking not found." as const };
+  if (!booking) return { error: "Booking not found." };
   if (booking.ownerId !== ownerId) {
-    return { error: "You cannot act on bookings you don't own." as const };
+    return { error: "You cannot act on bookings you don't own." };
   }
   return { booking };
 }

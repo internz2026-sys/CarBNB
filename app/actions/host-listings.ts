@@ -50,11 +50,16 @@ async function requireHost() {
   return owner;
 }
 
-async function requireOwnListing(listingId: string, ownerId: string) {
+type ListingRow = NonNullable<Awaited<ReturnType<typeof db.carListing.findUnique>>>;
+
+async function requireOwnListing(
+  listingId: string,
+  ownerId: string,
+): Promise<{ error: string } | { listing: ListingRow }> {
   const listing = await db.carListing.findUnique({ where: { id: listingId } });
-  if (!listing) return { error: "Listing not found." as const };
+  if (!listing) return { error: "Listing not found." };
   if (listing.ownerId !== ownerId) {
-    return { error: "You cannot modify a listing you don't own." as const };
+    return { error: "You cannot modify a listing you don't own." };
   }
   return { listing };
 }
