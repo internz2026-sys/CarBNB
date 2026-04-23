@@ -91,14 +91,14 @@ export default async function CarListingsPage({
   const isFiltered = Boolean(trimmedSearch || activeStatus);
 
   return (
-    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-8 sm:py-8 xl:px-10 xl:py-10">
+    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-7 sm:py-7">
       <div className="space-y-12">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <h1 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl xl:text-[3.5rem] xl:leading-none">
+            <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl xl:text-[2.5rem] xl:leading-tight">
               Car Listings
             </h1>
-            <p className="mt-3 text-lg font-medium text-on-surface-variant sm:text-xl xl:text-[1.45rem]">
+            <p className="mt-2 text-base font-medium text-on-surface-variant sm:text-lg">
               Manage owner vehicles, approve new listings, and monitor fleet inventory.
             </p>
           </div>
@@ -112,13 +112,13 @@ export default async function CarListingsPage({
           </Link>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <article className="flex min-h-[9rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
+        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
+          <article className="flex min-h-[7.5rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
             <div>
               <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                 Total Listings
               </p>
-              <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none text-on-surface">
+              <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none text-on-surface">
                 {totalListings}
               </h2>
             </div>
@@ -128,12 +128,12 @@ export default async function CarListingsPage({
             </span>
           </article>
 
-          <article className="flex min-h-[9rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
+          <article className="flex min-h-[7.5rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
             <div>
               <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                 Pending Approval
               </p>
-              <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none text-on-surface">
+              <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none text-on-surface">
                 {pendingListings}
               </h2>
             </div>
@@ -143,12 +143,12 @@ export default async function CarListingsPage({
             </span>
           </article>
 
-          <article className="flex min-h-[9rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
+          <article className="flex min-h-[7.5rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
             <div>
               <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                 Suspended
               </p>
-              <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none text-error">
+              <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none text-error">
                 {suspendedListings}
               </h2>
             </div>
@@ -157,12 +157,12 @@ export default async function CarListingsPage({
             </span>
           </article>
 
-          <article className="flex min-h-[9rem] flex-col justify-between rounded-xl bg-[linear-gradient(135deg,#003d9b_0%,#0052cc_100%)] px-6 py-5 text-on-primary shadow-[0_8px_40px_rgb(19_27_46_/_0.06)]">
+          <article className="flex min-h-[7.5rem] flex-col justify-between rounded-xl bg-[linear-gradient(135deg,#003d9b_0%,#0052cc_100%)] px-6 py-5 text-on-primary shadow-[0_8px_40px_rgb(19_27_46_/_0.06)]">
             <div>
               <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-primary/80">
                 Average Daily Rate
               </p>
-              <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none tracking-tight">
+              <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none tracking-tight">
                 {peso.format(averagePrice)}
               </h2>
             </div>

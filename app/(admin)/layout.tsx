@@ -11,7 +11,7 @@ export default function AdminLayout({
       <Sidebar />
       <Topnav />
       <main className="min-h-screen xl:pl-[18rem]">
-        <div className="px-4 pb-10 pt-24 sm:px-6 lg:px-8 xl:px-10 xl:pb-14 xl:pt-28">
+        <div className="px-4 pb-10 pt-24 sm:px-6 lg:px-8 xl:px-6 xl:pb-12 xl:pt-24">
           <MobileAdminNav />
           {children}
         </div>

@@ -49,13 +49,13 @@ export default async function CustomersPage({
   const isFiltered = Boolean(trimmedSearch);
 
   return (
-    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-8 sm:py-8 xl:px-10 xl:py-10">
+    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-7 sm:py-7">
       <div className="space-y-10">
         <div>
-          <h1 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl xl:text-[3.5rem] xl:leading-none">
+          <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl xl:text-[2.5rem] xl:leading-tight">
             Customers
           </h1>
-          <p className="mt-3 text-lg font-medium text-on-surface-variant sm:text-xl">
+          <p className="mt-2 text-base font-medium text-on-surface-variant sm:text-lg">
             All registered renters and their booking history.
           </p>
         </div>
@@ -195,7 +195,7 @@ function SummaryCard({
         <p className="text-[0.7rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
           {label}
         </p>
-        <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none text-on-surface">
+        <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none text-on-surface">
           {value}
         </h2>
       </div>

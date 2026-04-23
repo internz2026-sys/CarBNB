@@ -102,18 +102,18 @@ export default async function DashboardPage() {
   const totalPending = pendingOwners + pendingListings;
 
   return (
-    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-8 sm:py-8 xl:px-10 xl:py-10">
+    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-7 sm:py-7">
       <div className="space-y-10">
         <div className="max-w-3xl">
-          <h1 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl xl:text-[3.5rem] xl:leading-none">
+          <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl xl:text-[2.5rem] xl:leading-tight">
             Performance Overview
           </h1>
-          <p className="mt-3 text-lg font-medium text-on-surface-variant sm:text-xl xl:text-[1.45rem]">
+          <p className="mt-2 text-base font-medium text-on-surface-variant sm:text-lg">
             Real-time pulse of your car-sharing ecosystem.
           </p>
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,2fr)_minmax(0,1fr)]">
           <StatCard
             footnote={`${verifiedOwners} verified`}
             icon={<TrendingUp className="size-4" />}
@@ -129,13 +129,13 @@ export default async function DashboardPage() {
             value={String(activeListings)}
           />
 
-          <article className="flex min-h-[12.5rem] flex-col justify-between rounded-xl bg-[linear-gradient(135deg,#003d9b_0%,#0052cc_100%)] px-7 py-6 text-on-primary shadow-[0_8px_40px_rgb(19_27_46_/_0.06)]">
+          <article className="flex min-h-[10rem] flex-col justify-between rounded-xl bg-[linear-gradient(135deg,#003d9b_0%,#0052cc_100%)] px-7 py-6 text-on-primary shadow-[0_8px_40px_rgb(19_27_46_/_0.06)]">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-primary/80">
                   Total Revenue
                 </p>
-                <h2 className="mt-3 font-headline text-[3.45rem] font-extrabold leading-none tracking-tight">
+                <h2 className="mt-3 font-headline text-[2.75rem] font-extrabold leading-none tracking-tight">
                   {peso.format(totalRevenue)}
                 </h2>
                 <p className="mt-1 text-xs text-on-primary/70">All-time from completed rentals</p>
@@ -170,7 +170,7 @@ export default async function DashboardPage() {
           />
         </div>
 
-        <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
+        <div className="grid gap-5 2xl:grid-cols-[22rem_minmax(0,1fr)]">
           <section className="rounded-xl bg-surface-container p-6 sm:p-8">
             <div className="mb-6 flex items-center justify-between gap-3">
               <h2 className="font-headline text-[1.75rem] font-bold tracking-tight text-on-surface">
@@ -399,12 +399,12 @@ function StatCard({
         ? "text-on-tertiary-fixed-variant"
         : "text-on-surface-variant";
   return (
-    <article className="flex min-h-[12.5rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-7 py-6 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
+    <article className="flex min-h-[10rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-7 py-6 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
       <div>
         <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
           {label}
         </p>
-        <h2 className={cn("mt-4 font-headline text-[3rem] font-extrabold leading-none", valueColor)}>
+        <h2 className={cn("mt-4 font-headline text-[2.5rem] font-extrabold leading-none", valueColor)}>
           {value}
         </h2>
       </div>

@@ -95,14 +95,14 @@ export default async function AdminBookingsPage({
   const isFiltered = Boolean(trimmedSearch || activeStatus || unpaidOnly);
 
   return (
-    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-8 sm:py-8 xl:px-10 xl:py-10">
+    <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-7 sm:py-7">
       <div className="space-y-10">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
-            <h1 className="font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl xl:text-[3.5rem] xl:leading-none">
+            <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl xl:text-[2.5rem] xl:leading-tight">
               Bookings
             </h1>
-            <p className="mt-3 text-lg font-medium text-on-surface-variant sm:text-xl">
+            <p className="mt-2 text-base font-medium text-on-surface-variant sm:text-lg">
               Review customer reservations, advance rental lifecycle, and record cash payments.
             </p>
           </div>
@@ -116,7 +116,7 @@ export default async function AdminBookingsPage({
           </Link>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
           <SummaryCard
             hint={`${pendingCount} pending review`}
             icon={<ClipboardList className="size-4" />}
@@ -324,12 +324,12 @@ function SummaryCard({
   value: number;
 }) {
   return (
-    <article className="flex min-h-[9rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
+    <article className="flex min-h-[7.5rem] flex-col justify-between rounded-xl bg-surface-container-lowest px-6 py-5 shadow-[0_8px_32px_rgb(19_27_46_/_0.06)]">
       <div>
         <p className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
           {label}
         </p>
-        <h2 className="mt-2 font-headline text-[2.4rem] font-extrabold leading-none text-on-surface">
+        <h2 className="mt-2 font-headline text-[2rem] font-extrabold leading-none text-on-surface">
           {value}
         </h2>
       </div>
