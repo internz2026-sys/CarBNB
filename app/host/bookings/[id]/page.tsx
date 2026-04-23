@@ -241,7 +241,12 @@ export default async function HostBookingDetailPage({
                 <span className="font-medium">{peso.format(booking.totalAmount)}</span>
               </div>
               <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Platform fee (15%)</span>
+                <span>
+                  Platform fee
+                  {booking.totalAmount > 0
+                    ? ` (${Math.round((booking.platformFee / booking.totalAmount) * 100)}%)`
+                    : ""}
+                </span>
                 <span>−{peso.format(booking.platformFee)}</span>
               </div>
               <div className="flex justify-between border-t border-border pt-2">

@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, ListingStatus, PaymentStatus } from "@/types";
 import { checkAvailability } from "@/lib/availability";
 import { calculateBookingAmount } from "@/lib/platform-settings";
+import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { generateBookingReference } from "@/lib/booking-ref";
 import { CANCELLATION_REASONS, CANCELLATION_SLUGS } from "@/lib/cancellation-reasons";
 
@@ -361,10 +362,12 @@ export async function createAdminBookingAction(
   });
   if (!availability.ok) return { error: availability.reason };
 
+  const settings = await getPlatformSettings();
   const { totalAmount, platformFee, ownerPayout } = calculateBookingAmount(
     listing.dailyPrice,
     pickup,
     returnDate,
+    settings.commissionRate,
   );
   const referenceNumber = await generateBookingReference();
 

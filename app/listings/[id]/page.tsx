@@ -22,6 +22,7 @@ import { BookingStatus, ListingStatus, OwnerStatus } from "@/types";
 import { createClient } from "@/utils/supabase/server";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getUnavailableDates } from "@/lib/availability";
+import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { BookingCTA } from "./booking-cta";
 
 export const dynamic = "force-dynamic";
@@ -121,6 +122,8 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
     exceptions: listing.exceptions,
     existingBookings: listing.bookings,
   });
+
+  const settings = await getPlatformSettings();
 
   const primaryPhoto = listing.photos[0] ?? null;
   const primaryPhotoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
@@ -336,6 +339,7 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
       </main>
 
       <BookingCTA
+        commissionRate={settings.commissionRate}
         dailyPrice={listing.dailyPrice}
         listingId={listing.id}
         listingStatus={listing.status}

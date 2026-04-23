@@ -205,3 +205,18 @@ model ActivityLogEntry {
   type        String   // system, owner, car, booking
   timestamp   DateTime @default(now())
 }
+
+// Single-row settings table. Always queried/mutated by the literal id
+// "singleton"; helper in lib/platform-settings.ts upserts on read so the
+// row is self-healing if something wipes it.
+model PlatformSettings {
+  id                           String   @id @default("singleton")
+  commissionRate               Float    @default(0.15)    // 0-1, fraction of booking total
+  securityDeposit              Float    @default(5000)    // PHP
+  autoApproveVerifiedCustomers Boolean  @default(false)
+  requireOwnerConfirmation     Boolean  @default(false)
+  minimumBookingNoticeHours    Int      @default(24)
+
+  updatedAt                    DateTime @updatedAt
+  updatedBy                    String?  // admin email who last saved
+}

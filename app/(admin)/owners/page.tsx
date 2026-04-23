@@ -205,7 +205,7 @@ export default async function OwnersPage({
             </article>
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[22rem_minmax(0,1fr)]">
+          <div className="grid gap-5 2xl:grid-cols-[22rem_minmax(0,1fr)]">
             <section className="rounded-xl bg-surface-container p-6 sm:p-8">
               <div className="mb-6 flex items-center justify-between gap-3">
                 <h2 className="font-headline text-[1.75rem] font-bold tracking-tight text-on-surface">

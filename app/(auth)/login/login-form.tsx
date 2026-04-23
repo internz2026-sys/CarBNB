@@ -50,6 +50,7 @@ export function LoginForm({ redirectTo, role }: { redirectTo?: string; role: Rol
 
   return (
     <form action={formAction} className="space-y-6 pt-6">
+      <input name="selectedRole" type="hidden" value={role} />
       {redirectTo ? <input name="redirectTo" type="hidden" value={redirectTo} /> : null}
       <div className="rounded-[1.5rem] bg-surface-container p-4 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
         <div className="flex items-start gap-3">
@@ -71,6 +72,7 @@ export function LoginForm({ redirectTo, role }: { redirectTo?: string; role: Rol
         <div className="space-y-2">
           <Label htmlFor={config.emailId}>{config.emailLabel}</Label>
           <Input
+            defaultValue={state?.email ?? ""}
             id={config.emailId}
             name="email"
             placeholder={config.emailPlaceholder}

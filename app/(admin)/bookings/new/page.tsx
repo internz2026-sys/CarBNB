@@ -6,12 +6,13 @@ import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
 import { BookingStatus, ListingStatus } from "@/types";
 import { getUnavailableDates } from "@/lib/availability";
+import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { NewAdminBookingForm } from "./new-admin-booking-form";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewAdminBookingPage() {
-  const [customers, listings] = await Promise.all([
+  const [customers, listings, settings] = await Promise.all([
     db.customer.findMany({
       orderBy: { fullName: "asc" },
       select: { id: true, fullName: true, email: true },
@@ -32,6 +33,7 @@ export default async function NewAdminBookingPage() {
         },
       },
     }),
+    getPlatformSettings(),
   ]);
 
   // Precompute 90-day unavailable date strings per listing so the calendar
@@ -76,6 +78,7 @@ export default async function NewAdminBookingPage() {
       />
 
       <NewAdminBookingForm
+        commissionRate={settings.commissionRate}
         customers={customers}
         listings={listingOptions}
         unavailableByListing={unavailableByListing}

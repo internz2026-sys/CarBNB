@@ -52,10 +52,12 @@ function toDateString(d: Date) {
 }
 
 export function NewAdminBookingForm({
+  commissionRate,
   customers,
   listings,
   unavailableByListing,
 }: {
+  commissionRate: number;
   customers: CustomerOption[];
   listings: ListingOption[];
   unavailableByListing: Record<string, string[]>;
@@ -92,8 +94,13 @@ export function NewAdminBookingForm({
   const preview = useMemo(() => {
     if (!selectedListing || !range?.from || !range?.to) return null;
     if (conflicts.length > 0) return null;
-    return calculateBookingAmount(selectedListing.dailyPrice, range.from, range.to);
-  }, [selectedListing, range, conflicts.length]);
+    return calculateBookingAmount(
+      selectedListing.dailyPrice,
+      range.from,
+      range.to,
+      commissionRate,
+    );
+  }, [selectedListing, range, conflicts.length, commissionRate]);
 
   const pickupISO = range?.from ? toDateString(range.from) : "";
   const returnISO = range?.to ? toDateString(range.to) : "";

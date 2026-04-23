@@ -19,13 +19,17 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   addAvailabilityExceptionAction,
   deleteAvailabilityExceptionAction,
   type ListingActionState,
 } from "@/app/actions/listings";
+
+const STATUS_OPTIONS = [
+  { value: "no", label: "Block this date" },
+  { value: "yes", label: "Force available (override)" },
+] as const;
 
 type ExceptionRow = {
   id: string;
@@ -87,12 +91,17 @@ export function AvailabilityExceptionsForm({
           <div className="space-y-1">
             <Label className="text-xs">Status</Label>
             <Select onValueChange={(v) => v && setIsAvailable(v as "no" | "yes")} value={isAvailable}>
-              <SelectTrigger>
-                <SelectValue />
+              <SelectTrigger className="w-full">
+                <span className="truncate text-left">
+                  {STATUS_OPTIONS.find((o) => o.value === isAvailable)?.label ?? "Select status"}
+                </span>
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="no">Block this date</SelectItem>
-                <SelectItem value="yes">Force available (override)</SelectItem>
+                {STATUS_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

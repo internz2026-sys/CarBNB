@@ -5,7 +5,7 @@ import { createClient } from "@/utils/supabase/server";
 import { db } from "@/lib/db";
 import { OwnerStatus } from "@/types";
 
-export type AuthState = { error: string } | null;
+export type AuthState = { error: string; email?: string } | null;
 
 async function resolveRoleRedirect(email: string): Promise<string> {
   // Source of truth for role is the database, not auth metadata — auth
@@ -45,15 +45,47 @@ export async function loginAction(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const selectedRole = formData.get("selectedRole");
   const redirectToRaw = formData.get("redirectTo");
   const redirectTo = sanitizeRedirectTo(
     typeof redirectToRaw === "string" ? redirectToRaw : null,
   );
-  if (!email || !password) return { error: "Email and password are required." };
+  if (!email || !password) {
+    return { error: "Email and password are required.", email };
+  }
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) return { error: error.message };
+  if (error) return { error: error.message, email };
+
+  // Tab-mismatch validation: the login page has Host and Customer tabs. If
+  // the user picked the wrong tab for their account, bail out cleanly.
+  // Admins are excluded — they log in via whichever tab they happen to pick.
+  if (selectedRole === "host" || selectedRole === "customer") {
+    const [admin, owner, customer] = await Promise.all([
+      db.user.findUnique({ where: { email } }),
+      db.owner.findUnique({ where: { email } }),
+      db.customer.findUnique({ where: { email } }),
+    ]);
+    if (!admin) {
+      if (selectedRole === "host" && !owner) {
+        await supabase.auth.signOut();
+        return {
+          error:
+            "This email is registered as a customer account. Please use the Customer tab.",
+          email,
+        };
+      }
+      if (selectedRole === "customer" && !customer) {
+        await supabase.auth.signOut();
+        return {
+          error:
+            "This email is registered as a host account. Please use the Host tab.",
+          email,
+        };
+      }
+    }
+  }
 
   // Explicit `redirectTo` wins (came from proxy.ts when the user was on a
   // guarded route); otherwise fall back to the default for their role.

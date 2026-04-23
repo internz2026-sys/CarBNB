@@ -70,16 +70,26 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2 max-w-lg">
+          <div className="space-y-2 w-full">
             <Label>Verified Owner</Label>
             <Select onValueChange={(v) => v && setOwnerId(v)} value={ownerId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select owner" />
+              <SelectTrigger className="w-full">
+                <span className="truncate text-left">
+                  {(() => {
+                    const selected = owners.find((o) => o.id === ownerId);
+                    return selected
+                      ? `${selected.fullName} — ${selected.email}`
+                      : "Select owner";
+                  })()}
+                </span>
               </SelectTrigger>
               <SelectContent>
                 {owners.map((o) => (
                   <SelectItem key={o.id} value={o.id}>
-                    {o.fullName} ({o.email})
+                    <div className="flex flex-col">
+                      <span className="font-medium">{o.fullName}</span>
+                      <span className="text-xs text-muted-foreground">{o.email}</span>
+                    </div>
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -116,7 +126,7 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
               max={2030}
               min={1980}
               name="year"
-              placeholder="2024"
+              placeholder="e.g. 2024"
               required
               type="number"
             />
@@ -193,7 +203,7 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
               max={15}
               min={2}
               name="seatingCapacity"
-              placeholder="5"
+              placeholder="e.g. 5"
               required
               type="number"
             />
@@ -215,7 +225,7 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
                 id="dailyPrice"
                 min={1}
                 name="dailyPrice"
-                placeholder="2500"
+                placeholder="e.g. 2500"
                 required
                 step="1"
                 type="number"

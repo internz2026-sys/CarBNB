@@ -43,7 +43,15 @@ export async function Topnav() {
             {displayName ? (
               <UserMenu
                 fullName={displayName}
-                links={[{ label: "Browse cars", href: "/listings" }]}
+                links={
+                  viewer.kind === "admin"
+                    ? [
+                        { label: "Admin dashboard", href: "/dashboard" },
+                        { label: "Platform settings", href: "/settings" },
+                        { label: "Browse cars", href: "/listings" },
+                      ]
+                    : [{ label: "Browse cars", href: "/listings" }]
+                }
                 roleLabel={
                   viewer.kind === "admin" ? "Admin" : viewer.kind === "host" ? "Host" : "Customer"
                 }

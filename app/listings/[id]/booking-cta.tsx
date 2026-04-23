@@ -30,12 +30,14 @@ const peso = new Intl.NumberFormat("en-PH", {
 });
 
 export function BookingCTA({
+  commissionRate,
   dailyPrice,
   listingId,
   listingStatus,
   unavailableDates,
   viewerKind,
 }: {
+  commissionRate: number;
   dailyPrice: number;
   listingId: string;
   listingStatus: string;
@@ -79,7 +81,14 @@ export function BookingCTA({
     );
   }
 
-  return <CustomerBookingDialog dailyPrice={dailyPrice} listingId={listingId} unavailableDates={unavailableDates} />;
+  return (
+    <CustomerBookingDialog
+      commissionRate={commissionRate}
+      dailyPrice={dailyPrice}
+      listingId={listingId}
+      unavailableDates={unavailableDates}
+    />
+  );
 }
 
 function FixedBar({ children }: { children: React.ReactNode }) {
@@ -100,10 +109,12 @@ function FixedBar({ children }: { children: React.ReactNode }) {
 }
 
 function CustomerBookingDialog({
+  commissionRate,
   dailyPrice,
   listingId,
   unavailableDates,
 }: {
+  commissionRate: number;
   dailyPrice: number;
   listingId: string;
   unavailableDates: string[];
@@ -129,8 +140,8 @@ function CustomerBookingDialog({
   const preview = useMemo(() => {
     if (!range?.from || !range?.to) return null;
     if (conflicts.length > 0) return null;
-    return calculateBookingAmount(dailyPrice, range.from, range.to);
-  }, [dailyPrice, range, conflicts.length]);
+    return calculateBookingAmount(dailyPrice, range.from, range.to, commissionRate);
+  }, [dailyPrice, range, conflicts.length, commissionRate]);
 
   const pickupISO = range?.from ? toDateString(range.from) : "";
   const returnISO = range?.to ? toDateString(range.to) : "";
