@@ -22,6 +22,12 @@ const ADMIN_PATHS = [
 // the customer account UI. The (customer) route group is a URL no-op.
 const CUSTOMER_PATHS = ["/account"];
 
+// Host-authenticated routes. Any logged-in user with an `Owner` row may
+// access — regardless of Owner.status. The dashboard page itself renders
+// the "awaiting approval" / "suspended" locked views when status isn't
+// VERIFIED, so the proxy must let PENDING and SUSPENDED hosts through.
+const HOST_PATHS = ["/host"];
+
 function matchesAny(pathname: string, prefixes: string[]) {
   return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
@@ -56,6 +62,18 @@ export async function proxy(request: NextRequest) {
     if (!customer) {
       // Logged-in but not a customer — send them home rather than into a
       // customer dashboard that'll error.
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+  }
+
+  if (matchesAny(pathname, HOST_PATHS)) {
+    if (!user?.email) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    const owner = await db.owner.findUnique({ where: { email: user.email } });
+    if (!owner) {
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

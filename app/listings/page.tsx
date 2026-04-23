@@ -84,7 +84,15 @@ export default async function PublicListingsPage({
                 roleLabel="Admin"
               />
             ) : viewer.kind === "host" ? (
-              <UserMenu fullName={viewer.fullName} roleLabel="Host" />
+              <UserMenu
+                fullName={viewer.fullName}
+                links={[
+                  { label: "Host dashboard", href: "/host/dashboard" },
+                  { label: "My cars", href: "/host/cars" },
+                  { label: "My bookings", href: "/host/bookings" },
+                ]}
+                roleLabel="Host"
+              />
             ) : (
               <>
                 <Link className="text-sm font-semibold text-on-surface-variant hover:text-primary" href="/login">

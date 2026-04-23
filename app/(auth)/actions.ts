@@ -17,7 +17,7 @@ async function resolveRoleRedirect(email: string): Promise<string> {
     db.customer.findUnique({ where: { email } }),
   ]);
   if (admin) return "/dashboard";
-  if (owner) return "/"; // host dashboard not built yet — park at landing (Tier 6)
+  if (owner) return "/host/dashboard";
   if (customer) return "/account";
   return "/";
 }
