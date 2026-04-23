@@ -111,7 +111,24 @@ model Booking {
   
   status          String   @default("PENDING") // PENDING, CONFIRMED, ONGOING, COMPLETED, CANCELLED, REJECTED
   paymentStatus   String   @default("UNPAID")  // UNPAID, PARTIALLY_PAID, PAID, REFUNDED
-  
+
+  // Payment capture fields (Tier 5, cash-only model for now)
+  paymentMethod    String?   // "CASH" today; extensible for GCash/bank later
+  paymentReceivedAt DateTime?
+  paymentReceivedBy String?  // admin email who marked it paid
+  paymentProofUrl   String?  // optional receipt photo (no UI yet)
+  paymentNotes      String?
+
+  // Cancellation / rejection capture fields (Tier 5)
+  cancellationReason String?  // preset slug: customer_no_show | documents_not_verified | vehicle_unavailable | duplicate_booking | other
+  cancellationNote   String?  // required when reason is "other", optional otherwise
+  cancelledAt        DateTime?
+  cancelledBy        String?  // admin email or "customer" if self-cancelled
+
+  // Timestamps for start / completion of the rental
+  rentalStartedAt    DateTime?
+  rentalCompletedAt  DateTime?
+
   accountingEntries AccountingEntry[]
 
   createdAt       DateTime @default(now())

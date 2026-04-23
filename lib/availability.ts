@@ -102,6 +102,28 @@ export function checkAvailability({
   return { ok: true };
 }
 
+// Client-side helper: given a selected range and the list of ISO-string
+// unavailable dates (as passed down from the server to booking forms),
+// return the yyyy-MM-dd keys that are both selected AND blocked. An empty
+// array means the range is fully bookable. Used by the booking forms to
+// block submission when the range spans an unavailable day (weekly rule,
+// exception, or existing booking).
+export function findRangeConflicts(
+  from: Date,
+  to: Date,
+  unavailableIsoList: string[],
+): string[] {
+  const unavailableKeys = new Set(
+    unavailableIsoList.map((iso) => format(new Date(iso), "yyyy-MM-dd")),
+  );
+  const conflicts: string[] = [];
+  for (const d of eachDayOfInterval({ start: from, end: to })) {
+    const key = format(d, "yyyy-MM-dd");
+    if (unavailableKeys.has(key)) conflicts.push(key);
+  }
+  return conflicts;
+}
+
 // Utility for the listing detail date picker: return the set of dates that
 // should be visually disabled in the next N days.
 export function getUnavailableDates({

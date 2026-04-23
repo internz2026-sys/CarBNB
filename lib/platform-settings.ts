@@ -13,9 +13,15 @@ export function calculateBookingAmount(dailyPrice: number, pickupDate: Date, ret
   platformFee: number;
   ownerPayout: number;
 } {
+  // Inclusive calendar-day billing: every calendar date the renter holds
+  // the car counts as a full rental day. Matches what the range calendar
+  // visually highlights and the local P2P market norm.
+  //   Pickup May 4, Return May 4 → 1 day
+  //   Pickup May 4, Return May 5 → 2 days
+  //   Pickup May 4, Return May 6 → 3 days
   const msPerDay = 24 * 60 * 60 * 1000;
-  const rawDays = Math.ceil((returnDate.getTime() - pickupDate.getTime()) / msPerDay);
-  const days = Math.max(1, rawDays); // same-day + partial-day rentals round up to 1 day
+  const gapDays = Math.ceil((returnDate.getTime() - pickupDate.getTime()) / msPerDay);
+  const days = Math.max(1, gapDays + 1);
   const totalAmount = Math.round(dailyPrice * days);
   const platformFee = Math.round(totalAmount * COMMISSION_RATE);
   const ownerPayout = totalAmount - platformFee;

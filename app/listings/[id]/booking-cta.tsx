@@ -20,6 +20,8 @@ import {
 import { ListingStatus } from "@/types";
 import { createBookingAction, type BookingActionState } from "@/app/actions/bookings";
 import { calculateBookingAmount } from "@/lib/platform-settings";
+import { findRangeConflicts } from "@/lib/availability";
+import { format, parseISO } from "date-fns";
 
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -119,10 +121,16 @@ function CustomerBookingDialog({
     return [past, ...blocked];
   }, [unavailableDates]);
 
+  const conflicts = useMemo(() => {
+    if (!range?.from || !range?.to) return [];
+    return findRangeConflicts(range.from, range.to, unavailableDates);
+  }, [range, unavailableDates]);
+
   const preview = useMemo(() => {
     if (!range?.from || !range?.to) return null;
+    if (conflicts.length > 0) return null;
     return calculateBookingAmount(dailyPrice, range.from, range.to);
-  }, [dailyPrice, range]);
+  }, [dailyPrice, range, conflicts.length]);
 
   const pickupISO = range?.from ? toDateString(range.from) : "";
   const returnISO = range?.to ? toDateString(range.to) : "";
@@ -170,7 +178,21 @@ function CustomerBookingDialog({
           </div>
 
           <div className="rounded-lg bg-muted/30 p-3 text-sm">
-            {preview ? (
+            {conflicts.length > 0 ? (
+              <div className="text-xs text-red-700">
+                <p className="font-semibold">Your selection crosses unavailable days:</p>
+                <p className="mt-1">
+                  {conflicts
+                    .slice(0, 5)
+                    .map((key) => format(parseISO(key), "MMM d"))
+                    .join(", ")}
+                  {conflicts.length > 5 ? ` and ${conflicts.length - 5} more` : ""}
+                </p>
+                <p className="mt-2 text-red-600">
+                  Shorten your range or split it into two separate bookings.
+                </p>
+              </div>
+            ) : preview ? (
               <div className="space-y-1">
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">
