@@ -1,0 +1,270 @@
+"use client";
+
+import { useActionState, useState } from "react";
+import Link from "next/link";
+
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { createListingAction, type ListingActionState } from "@/app/actions/listings";
+
+type OwnerOption = { id: string; fullName: string; email: string };
+
+export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
+  const [ownerId, setOwnerId] = useState<string>(owners[0]?.id ?? "");
+  const [transmission, setTransmission] = useState<string>("Automatic");
+  const [fuelType, setFuelType] = useState<string>("Gasoline");
+  const [state, formAction, pending] = useActionState<ListingActionState, FormData>(
+    createListingAction,
+    null,
+  );
+
+  const fieldError = (name: string) => state?.fieldErrors?.[name]?.[0];
+
+  if (owners.length === 0) {
+    return (
+      <div className="rounded-[1rem] bg-amber-50 p-6 text-sm text-amber-900">
+        <p className="font-semibold">No verified owners yet.</p>
+        <p className="mt-1">
+          Listings can only be created for verified owners. Approve an owner first via the{" "}
+          <Link className="underline" href="/owners">
+            Owners directory
+          </Link>
+          .
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <form action={formAction} className="space-y-8">
+      <input name="ownerId" type="hidden" value={ownerId} />
+      <input name="transmission" type="hidden" value={transmission} />
+      <input name="fuelType" type="hidden" value={fuelType} />
+
+      {state?.error ? (
+        <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">{state.error}</div>
+      ) : null}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Assign to Owner</CardTitle>
+          <CardDescription>
+            Select the verified owner this vehicle belongs to.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2 max-w-lg">
+            <Label>Verified Owner</Label>
+            <Select onValueChange={(v) => v && setOwnerId(v)} value={ownerId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select owner" />
+              </SelectTrigger>
+              <SelectContent>
+                {owners.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.fullName} ({o.email})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {fieldError("ownerId") ? (
+              <p className="text-xs text-red-600">{fieldError("ownerId")}</p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle Identity</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label htmlFor="plateNumber">Plate Number</Label>
+            <Input
+              className="font-mono uppercase tracking-wider"
+              id="plateNumber"
+              name="plateNumber"
+              placeholder="ABC 1234"
+              required
+            />
+            {fieldError("plateNumber") ? (
+              <p className="text-xs text-red-600">{fieldError("plateNumber")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="year">Year Model</Label>
+            <Input
+              id="year"
+              max={2030}
+              min={1980}
+              name="year"
+              placeholder="2024"
+              required
+              type="number"
+            />
+            {fieldError("year") ? (
+              <p className="text-xs text-red-600">{fieldError("year")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="brand">Brand</Label>
+            <Input id="brand" name="brand" placeholder="e.g. Toyota" required />
+            {fieldError("brand") ? (
+              <p className="text-xs text-red-600">{fieldError("brand")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="model">Model</Label>
+            <Input id="model" name="model" placeholder="e.g. Vios" required />
+            {fieldError("model") ? (
+              <p className="text-xs text-red-600">{fieldError("model")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="color">Color</Label>
+            <Input id="color" name="color" placeholder="e.g. Pearl White" required />
+            {fieldError("color") ? (
+              <p className="text-xs text-red-600">{fieldError("color")}</p>
+            ) : null}
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="location">City Location</Label>
+            <Input id="location" name="location" placeholder="e.g. Makati City" required />
+            {fieldError("location") ? (
+              <p className="text-xs text-red-600">{fieldError("location")}</p>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Specifications & Pricing</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-6 md:grid-cols-3">
+          <div className="space-y-2">
+            <Label htmlFor="transmission">Transmission</Label>
+            <Select onValueChange={(v) => v && setTransmission(v)} value={transmission}>
+              <SelectTrigger id="transmission">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Automatic">Automatic</SelectItem>
+                <SelectItem value="Manual">Manual</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="fuelType">Fuel Type</Label>
+            <Select onValueChange={(v) => v && setFuelType(v)} value={fuelType}>
+              <SelectTrigger id="fuelType">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Gasoline">Gasoline</SelectItem>
+                <SelectItem value="Diesel">Diesel</SelectItem>
+                <SelectItem value="Electric">Electric</SelectItem>
+                <SelectItem value="Hybrid">Hybrid</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="seatingCapacity">Seating Capacity</Label>
+            <Input
+              id="seatingCapacity"
+              max={15}
+              min={2}
+              name="seatingCapacity"
+              placeholder="5"
+              required
+              type="number"
+            />
+            {fieldError("seatingCapacity") ? (
+              <p className="text-xs text-red-600">{fieldError("seatingCapacity")}</p>
+            ) : null}
+          </div>
+
+          <div className="md:col-span-3 border-t border-border" />
+
+          <div className="space-y-2 md:col-span-1">
+            <Label htmlFor="dailyPrice">Daily Rate</Label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">
+                ₱
+              </span>
+              <Input
+                className="pl-8 font-medium text-lg"
+                id="dailyPrice"
+                min={1}
+                name="dailyPrice"
+                placeholder="2500"
+                required
+                step="1"
+                type="number"
+              />
+            </div>
+            {fieldError("dailyPrice") ? (
+              <p className="text-xs text-red-600">{fieldError("dailyPrice")}</p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="description">Description for Renters</Label>
+            <Textarea
+              className="resize-none h-24"
+              id="description"
+              name="description"
+              placeholder="Describe the vehicle's features, condition, and any rental rules..."
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Admin Notes (Optional)</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Textarea
+            className="resize-none h-20"
+            id="notes"
+            name="notes"
+            placeholder="Internal notes, approval review, etc. (only visible to admins)"
+          />
+        </CardContent>
+        <CardFooter className="bg-muted/30 border-t border-border px-6 py-4 flex justify-between gap-3 rounded-b-xl border-dashed">
+          <p className="text-sm text-muted-foreground max-w-sm">
+            After saving, you&apos;ll be redirected to the edit page to add photos, OR/CR,
+            and the availability schedule.
+          </p>
+          <div className="flex gap-3">
+            <Link className={buttonVariants({ variant: "outline" })} href="/car-listings">
+              Cancel
+            </Link>
+            <Button disabled={pending} type="submit">
+              {pending ? "Saving..." : "Save & Continue"}
+            </Button>
+          </div>
+        </CardFooter>
+      </Card>
+    </form>
+  );
+}

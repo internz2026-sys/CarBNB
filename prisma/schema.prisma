@@ -56,6 +56,7 @@ model CarListing {
   dailyPrice          Float
   description         String?
   photos              String[]
+  orCrDocumentUrl     String?
   status              String   @default("PENDING_APPROVAL") // ACTIVE, INACTIVE, MAINTENANCE, BOOKED, PENDING_APPROVAL
   availabilitySummary String?
   notes               String?
