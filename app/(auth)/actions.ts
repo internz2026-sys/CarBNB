@@ -17,9 +17,26 @@ async function resolveRoleRedirect(email: string): Promise<string> {
     db.customer.findUnique({ where: { email } }),
   ]);
   if (admin) return "/dashboard";
-  if (owner) return "/"; // host dashboard not built yet — park at landing
-  if (customer) return "/"; // customer account not built yet — park at landing
+  if (owner) return "/"; // host dashboard not built yet — park at landing (Tier 6)
+  if (customer) return "/account";
   return "/";
+}
+
+// Only allow same-origin relative paths through. Rejects anything that
+// could become an off-site redirect (absolute URLs, protocol-relative
+// URLs, or back-navigation paths).
+function sanitizeRedirectTo(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/")) return null;
+  if (raw.startsWith("//")) return null;
+  if (raw.startsWith("/login") || raw.startsWith("/signup")) return null;
+  return raw;
+}
+
+export async function logoutAction(): Promise<void> {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/");
 }
 
 export async function loginAction(
@@ -28,13 +45,19 @@ export async function loginAction(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const redirectToRaw = formData.get("redirectTo");
+  const redirectTo = sanitizeRedirectTo(
+    typeof redirectToRaw === "string" ? redirectToRaw : null,
+  );
   if (!email || !password) return { error: "Email and password are required." };
 
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message };
 
-  const destination = await resolveRoleRedirect(email);
+  // Explicit `redirectTo` wins (came from proxy.ts when the user was on a
+  // guarded route); otherwise fall back to the default for their role.
+  const destination = redirectTo ?? (await resolveRoleRedirect(email));
   redirect(destination);
 }
 

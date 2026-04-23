@@ -40,7 +40,7 @@ const roleContent = {
 
 export type RoleKey = keyof typeof roleContent;
 
-export function LoginForm({ role }: { role: RoleKey }) {
+export function LoginForm({ redirectTo, role }: { redirectTo?: string; role: RoleKey }) {
   const config = roleContent[role];
   const Icon = config.icon;
   const [state, formAction, pending] = useActionState<AuthState, FormData>(
@@ -50,6 +50,7 @@ export function LoginForm({ role }: { role: RoleKey }) {
 
   return (
     <form action={formAction} className="space-y-6 pt-6">
+      {redirectTo ? <input name="redirectTo" type="hidden" value={redirectTo} /> : null}
       <div className="rounded-[1.5rem] bg-surface-container p-4 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
         <div className="flex items-start gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-[1rem] bg-surface-container-lowest text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">

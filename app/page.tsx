@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import LandingPage from "@/components/marketing/landing-page";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "carBNB | Premium Peer-to-Peer Car Sharing",
   description:

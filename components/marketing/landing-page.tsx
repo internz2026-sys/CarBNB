@@ -12,8 +12,11 @@ import {
   Star,
 } from "lucide-react";
 import ScrollReveal from "@/components/marketing/scroll-reveal";
-import { bookings, carListings, customers, owners } from "@/lib/data/mock-data";
-import { BookingStatus, OwnerStatus } from "@/types";
+import { db } from "@/lib/db";
+import { BookingStatus, OwnerStatus, ListingStatus } from "@/types";
+import { resolveListingPhotoUrl } from "@/lib/listing-assets";
+import { getCurrentViewer } from "@/lib/current-user";
+import { UserMenu } from "@/components/layout/user-menu";
 
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -28,34 +31,11 @@ const compactPeso = new Intl.NumberFormat("en-PH", {
   maximumFractionDigits: 1,
 });
 
-const verifiedOwners = owners.filter((owner) => owner.status === OwnerStatus.VERIFIED).length;
-const activeTrips = bookings.filter((booking) =>
-  [BookingStatus.COMPLETED, BookingStatus.CONFIRMED, BookingStatus.ONGOING].includes(
-    booking.status
-  )
-).length;
-const cityCoverage = new Set(carListings.map((car) => car.location)).size;
-const totalHostEarnings = owners.reduce((sum, owner) => sum + owner.totalEarnings, 0);
-
-const featuredCars = [
-  {
-    ...carListings[1],
-    rating: 4.9,
-    eyebrow: "Family Favorite",
-    highlight: "Spacious SUV for weekend escapes",
-  },
-  {
-    ...carListings[2],
-    rating: 4.8,
-    eyebrow: "Trending Now",
-    highlight: "Confident diesel power with premium comfort",
-  },
-  {
-    ...carListings[0],
-    rating: 4.9,
-    eyebrow: "City Essential",
-    highlight: "Efficient and polished for urban trips",
-  },
+const FEATURED_EYEBROWS = ["City Essential", "Family Favorite", "Trending Now"];
+const FEATURED_HIGHLIGHTS = [
+  "Efficient and polished for urban trips",
+  "Spacious SUV for weekend escapes",
+  "Confident diesel power with premium comfort",
 ];
 
 const renterSteps = [
@@ -111,20 +91,6 @@ const advantages = [
   },
 ];
 
-const testimonials = [
-  {
-    quote:
-      "carBNB made hosting feel premium instead of stressful. I can finally treat my Fortuner like an asset, not just a parked expense.",
-    name: owners[0].fullName,
-    role: "Host in Makati City",
-  },
-  {
-    quote:
-      "The trip flow feels clean from discovery to pickup. No hidden surprises, and I knew exactly who I was booking with.",
-    name: customers[1].fullName,
-    role: "Renter from Pasig City",
-  },
-];
 
 
 
@@ -137,7 +103,73 @@ function initialsFor(name: string) {
     .toUpperCase();
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const viewer = await getCurrentViewer();
+  const [verifiedOwners, activeTrips, activeListings, distinctCities, hostEarningsAgg, testimonialOwner, testimonialCustomer] = await Promise.all([
+    db.owner.count({ where: { status: OwnerStatus.VERIFIED } }),
+    db.booking.count({
+      where: {
+        status: {
+          in: [BookingStatus.COMPLETED, BookingStatus.CONFIRMED, BookingStatus.ONGOING],
+        },
+      },
+    }),
+    db.carListing.findMany({
+      where: { status: ListingStatus.ACTIVE },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: { owner: { select: { fullName: true, status: true } } },
+    }),
+    db.carListing.findMany({
+      where: { status: ListingStatus.ACTIVE },
+      select: { location: true },
+    }),
+    db.owner.aggregate({
+      _sum: { totalEarnings: true },
+    }),
+    db.owner.findFirst({
+      where: { status: OwnerStatus.VERIFIED },
+      orderBy: { createdAt: "asc" },
+    }),
+    db.customer.findFirst({ orderBy: { createdAt: "asc" } }),
+  ]);
+
+  const cityCoverage = new Set(distinctCities.map((l) => l.location)).size;
+  const totalHostEarnings = hostEarningsAgg._sum.totalEarnings ?? 0;
+
+  const featuredCars = activeListings.map((car, idx) => ({
+    id: car.id,
+    brand: car.brand,
+    model: car.model,
+    year: car.year,
+    transmission: car.transmission,
+    seatingCapacity: car.seatingCapacity,
+    location: car.location,
+    dailyPrice: car.dailyPrice,
+    ownerName: car.owner.fullName,
+    photos: car.photos.length > 0
+      ? [resolveListingPhotoUrl(car.photos[0])]
+      : ["/images/cars/placeholder.jpg"],
+    rating: 4.8 + ((idx % 2) * 0.1),
+    eyebrow: FEATURED_EYEBROWS[idx] ?? "Featured",
+    highlight: FEATURED_HIGHLIGHTS[idx] ?? "Ready for your next drive",
+  }));
+
+  const testimonials = [
+    {
+      quote:
+        "carBNB made hosting feel premium instead of stressful. I can finally treat my car like an asset, not just a parked expense.",
+      name: testimonialOwner?.fullName ?? "Verified Host",
+      role: "Host in Metro Manila",
+    },
+    {
+      quote:
+        "The trip flow feels clean from discovery to pickup. No hidden surprises, and I knew exactly who I was booking with.",
+      name: testimonialCustomer?.fullName ?? "Renter",
+      role: "Renter from Metro Manila",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
@@ -178,18 +210,42 @@ export default function LandingPage() {
           </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Link
-              className="hidden rounded-full px-4 py-2 text-sm font-semibold text-primary transition hover:bg-surface-container-highest sm:inline-flex"
-              href="#owner-journey"
-            >
-              List Your Car
-            </Link>
-            <Link
-              className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-5 py-2.5 text-sm font-semibold text-on-primary shadow-[0_12px_30px_rgb(0_82_204_/_0.22)] transition hover:opacity-95"
-              href="/login"
-            >
-              Sign In
-            </Link>
+            {viewer.kind === "customer" ? (
+              <UserMenu
+                fullName={viewer.fullName}
+                links={[
+                  { label: "My bookings", href: "/account" },
+                  { label: "Browse cars", href: "/listings" },
+                ]}
+                roleLabel="Customer"
+              />
+            ) : viewer.kind === "admin" ? (
+              <UserMenu
+                fullName={viewer.fullName ?? viewer.email}
+                links={[
+                  { label: "Admin dashboard", href: "/dashboard" },
+                  { label: "Browse cars", href: "/listings" },
+                ]}
+                roleLabel="Admin"
+              />
+            ) : viewer.kind === "host" ? (
+              <UserMenu fullName={viewer.fullName} roleLabel="Host" />
+            ) : (
+              <>
+                <Link
+                  className="hidden rounded-full px-4 py-2 text-sm font-semibold text-primary transition hover:bg-surface-container-highest sm:inline-flex"
+                  href="#owner-journey"
+                >
+                  List Your Car
+                </Link>
+                <Link
+                  className="inline-flex items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-5 py-2.5 text-sm font-semibold text-on-primary shadow-[0_12px_30px_rgb(0_82_204_/_0.22)] transition hover:opacity-95"
+                  href="/login"
+                >
+                  Sign In
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </header>

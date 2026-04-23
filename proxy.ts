@@ -17,10 +17,13 @@ const ADMIN_PATHS = [
   "/settings",
 ];
 
-function isAdminPath(pathname: string) {
-  return ADMIN_PATHS.some(
-    (p) => pathname === p || pathname.startsWith(`${p}/`),
-  );
+// Customer-authenticated routes. Any logged-in user with a `Customer` row
+// may access; admins/owners get bounced so their session doesn't confuse
+// the customer account UI. The (customer) route group is a URL no-op.
+const CUSTOMER_PATHS = ["/account"];
+
+function matchesAny(pathname: string, prefixes: string[]) {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
 export async function proxy(request: NextRequest) {
@@ -28,7 +31,7 @@ export async function proxy(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  if (isAdminPath(pathname)) {
+  if (matchesAny(pathname, ADMIN_PATHS)) {
     if (!user?.email) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("redirectTo", pathname);
@@ -38,6 +41,21 @@ export async function proxy(request: NextRequest) {
     // callers that use the anon key directly.
     const admin = await db.user.findUnique({ where: { email: user.email } });
     if (!admin) {
+      return NextResponse.redirect(new URL("/", request.url));
+    }
+    return supabaseResponse;
+  }
+
+  if (matchesAny(pathname, CUSTOMER_PATHS)) {
+    if (!user?.email) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirectTo", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    const customer = await db.customer.findUnique({ where: { email: user.email } });
+    if (!customer) {
+      // Logged-in but not a customer — send them home rather than into a
+      // customer dashboard that'll error.
       return NextResponse.redirect(new URL("/", request.url));
     }
   }

@@ -7,9 +7,9 @@ import { LoginForm } from "./login-form";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ signedUp?: string }>;
+  searchParams: Promise<{ signedUp?: string; redirectTo?: string }>;
 }) {
-  const { signedUp } = await searchParams;
+  const { signedUp, redirectTo } = await searchParams;
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -99,14 +99,14 @@ export default async function LoginPage({
               </TabsList>
 
               <TabsContent className="focus-visible:outline-none focus-visible:ring-0" value="host">
-                <LoginForm role="host" />
+                <LoginForm redirectTo={redirectTo} role="host" />
               </TabsContent>
 
               <TabsContent
                 className="focus-visible:outline-none focus-visible:ring-0"
                 value="customer"
               >
-                <LoginForm role="customer" />
+                <LoginForm redirectTo={redirectTo} role="customer" />
               </TabsContent>
             </Tabs>
           </CardContent>

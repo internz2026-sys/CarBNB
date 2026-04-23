@@ -1,6 +1,16 @@
 import { Bell, MessageSquareMore, Search } from "lucide-react";
+import { UserMenu } from "@/components/layout/user-menu";
+import { getCurrentViewer } from "@/lib/current-user";
 
-export function Topnav() {
+export async function Topnav() {
+  const viewer = await getCurrentViewer();
+  const displayName =
+    viewer.kind === "admin"
+      ? viewer.fullName ?? viewer.email
+      : viewer.kind === "customer" || viewer.kind === "host"
+        ? viewer.fullName
+        : null;
+
   return (
     <header className="fixed inset-x-0 top-0 z-40 xl:left-[18rem]">
       <div className="bg-[rgb(250_248_255_/_0.7)] backdrop-blur-[12px]">
@@ -30,14 +40,15 @@ export function Topnav() {
               <MessageSquareMore className="size-5" />
               <span className="absolute right-3 top-3 size-2 rounded-full bg-error ring-2 ring-surface" />
             </button>
-            <div className="hidden items-center gap-3 sm:flex">
-              <span className="text-[1.15rem] font-semibold tracking-tight text-primary">
-                carBNB
-              </span>
-              <div className="grid size-10 place-items-center rounded-xl bg-surface-container-highest text-sm font-semibold text-primary shadow-[0_8px_28px_rgb(19_27_46_/_0.06)]">
-                AR
-              </div>
-            </div>
+            {displayName ? (
+              <UserMenu
+                fullName={displayName}
+                links={[{ label: "Browse cars", href: "/listings" }]}
+                roleLabel={
+                  viewer.kind === "admin" ? "Admin" : viewer.kind === "host" ? "Host" : "Customer"
+                }
+              />
+            ) : null}
           </div>
         </div>
       </div>
