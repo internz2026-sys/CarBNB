@@ -160,9 +160,9 @@ export function CalendarView({
                 Date Navigator
               </CardTitle>
             </CardHeader>
-            <CardContent className="p-4 flex flex-col items-center">
+            <CardContent className="p-3 flex flex-col items-center">
               <Calendar
-                className="rounded-md border shadow-sm w-[350px] bg-background scale-105 my-4"
+                className="rounded-md border shadow-sm w-full max-w-[300px] bg-background my-2"
                 mode="single"
                 modifiers={modifiers}
                 modifiersStyles={modifiersStyles}
