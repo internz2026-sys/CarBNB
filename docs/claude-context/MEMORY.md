@@ -1,0 +1,4 @@
+- [CarBNB project status](project_carbnb_status.md) — Tiers 1-7 + 7.1 live in prod (main at d826875); ready to branch tier-8-complete for accounting/reports work
+- [CarBNB git + deploy workflow](feedback_git_workflow.md) — one branch per tier; merge + deploy at the start of each NEW tier (not at the end)
+- [CarBNB collaboration mode](feedback_collaboration_mode.md) — Consulted mode; ask on first encounter of cross-cutting decisions, log to BACKLOG.md table, don't re-ask
+- [CarBNB manual test handoff format](feedback_manual_test_format.md) — When user confirms a test section passed, print next section's full numbered steps (not a summary)
