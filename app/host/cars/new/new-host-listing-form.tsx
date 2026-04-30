@@ -24,10 +24,16 @@ import {
   createHostListingAction,
   type HostListingActionState,
 } from "@/app/actions/host-listings";
+import {
+  VEHICLE_TYPES,
+  VEHICLE_FEATURES,
+  vehicleTypeLabel,
+} from "@/lib/listing-taxonomy";
 
 export function NewHostListingForm() {
   const [transmission, setTransmission] = useState<string>("Automatic");
   const [fuelType, setFuelType] = useState<string>("Gasoline");
+  const [vehicleType, setVehicleType] = useState<string>(VEHICLE_TYPES[0].slug);
   const [state, formAction, pending] = useActionState<HostListingActionState, FormData>(
     createHostListingAction,
     null,
@@ -39,6 +45,7 @@ export function NewHostListingForm() {
     <form action={formAction} className="space-y-8">
       <input name="transmission" type="hidden" value={transmission} />
       <input name="fuelType" type="hidden" value={fuelType} />
+      <input name="vehicleType" type="hidden" value={vehicleType} />
 
       {state?.error ? (
         <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">{state.error}</div>
@@ -114,6 +121,21 @@ export function NewHostListingForm() {
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-3">
           <div className="space-y-2">
+            <Label>Vehicle Type</Label>
+            <Select onValueChange={(v) => v && setVehicleType(v)} value={vehicleType}>
+              <SelectTrigger className="w-full">
+                <span className="truncate text-left">{vehicleTypeLabel(vehicleType)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {VEHICLE_TYPES.map((t) => (
+                  <SelectItem key={t.slug} value={t.slug}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label>Transmission</Label>
             <Select onValueChange={(v) => v && setTransmission(v)} value={transmission}>
               <SelectTrigger>
@@ -187,6 +209,33 @@ export function NewHostListingForm() {
               name="description"
               placeholder="Describe the vehicle's features, condition, and any rental rules..."
             />
+          </div>
+
+          <div className="md:col-span-3 border-t border-border" />
+
+          <div className="space-y-3 md:col-span-3">
+            <div>
+              <Label>Features</Label>
+              <p className="text-xs text-muted-foreground">
+                Tick everything this vehicle has. Renters use these to compare cars.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {VEHICLE_FEATURES.map((f) => (
+                <label
+                  className="flex items-center gap-2 rounded-md border border-border p-2.5 text-sm hover:bg-muted/40 cursor-pointer"
+                  key={f.slug}
+                >
+                  <input
+                    className="size-4 rounded border-border text-primary focus:ring-primary"
+                    name="features"
+                    type="checkbox"
+                    value={f.slug}
+                  />
+                  <span>{f.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
         </CardContent>
         <CardFooter className="bg-muted/30 border-t border-border px-6 py-4 flex justify-between gap-3 rounded-b-xl border-dashed">

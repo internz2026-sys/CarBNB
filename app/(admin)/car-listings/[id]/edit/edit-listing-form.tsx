@@ -21,6 +21,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { updateListingAction, type ListingActionState } from "@/app/actions/listings";
+import {
+  VEHICLE_TYPES,
+  VEHICLE_FEATURES,
+  vehicleTypeLabel,
+} from "@/lib/listing-taxonomy";
 
 type ListingData = {
   id: string;
@@ -30,6 +35,8 @@ type ListingData = {
   color: string;
   transmission: string;
   fuelType: string;
+  vehicleType: string;
+  features: string[];
   seatingCapacity: number;
   location: string;
   dailyPrice: number;
@@ -41,6 +48,8 @@ type ListingData = {
 export function EditListingForm({ listing }: { listing: ListingData }) {
   const [transmission, setTransmission] = useState<string>(listing.transmission);
   const [fuelType, setFuelType] = useState<string>(listing.fuelType);
+  const [vehicleType, setVehicleType] = useState<string>(listing.vehicleType);
+  const featureSet = new Set(listing.features);
   const [state, formAction, pending] = useActionState<ListingActionState, FormData>(
     updateListingAction,
     null,
@@ -53,6 +62,7 @@ export function EditListingForm({ listing }: { listing: ListingData }) {
       <input name="listingId" type="hidden" value={listing.id} />
       <input name="transmission" type="hidden" value={transmission} />
       <input name="fuelType" type="hidden" value={fuelType} />
+      <input name="vehicleType" type="hidden" value={vehicleType} />
 
       <Card>
         <CardHeader>
@@ -116,6 +126,21 @@ export function EditListingForm({ listing }: { listing: ListingData }) {
             ) : null}
           </div>
           <div className="space-y-2">
+            <Label htmlFor="vehicleTypeTrigger">Vehicle Type</Label>
+            <Select onValueChange={(v) => v && setVehicleType(v)} value={vehicleType}>
+              <SelectTrigger className="w-full" id="vehicleTypeTrigger">
+                <span className="text-left">{vehicleTypeLabel(vehicleType)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {VEHICLE_TYPES.map((t) => (
+                  <SelectItem key={t.slug} value={t.slug}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="transmission">Transmission</Label>
             <Select onValueChange={(v) => v && setTransmission(v)} value={transmission}>
               <SelectTrigger id="transmission">
@@ -170,6 +195,31 @@ export function EditListingForm({ listing }: { listing: ListingData }) {
             {fieldError("dailyPrice") ? (
               <p className="text-xs text-red-600">{fieldError("dailyPrice")}</p>
             ) : null}
+          </div>
+          <div className="space-y-3 md:col-span-2">
+            <div>
+              <Label>Features</Label>
+              <p className="text-xs text-muted-foreground">
+                Tick everything this vehicle has.
+              </p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {VEHICLE_FEATURES.map((f) => (
+                <label
+                  className="flex items-center gap-2 rounded-md border border-border p-2.5 text-sm hover:bg-muted/40 cursor-pointer"
+                  key={f.slug}
+                >
+                  <input
+                    className="size-4 rounded border-border text-primary focus:ring-primary"
+                    defaultChecked={featureSet.has(f.slug)}
+                    name="features"
+                    type="checkbox"
+                    value={f.slug}
+                  />
+                  <span>{f.label}</span>
+                </label>
+              ))}
+            </div>
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="description">Description</Label>

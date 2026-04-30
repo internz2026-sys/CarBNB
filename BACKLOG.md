@@ -128,6 +128,13 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Commission rate lock-in | **New rate applies to new bookings only.** `Booking.platformFee` / `ownerPayout` are calculated at creation time using the live commission; existing rows keep their stored values. Dashboard "Platform Fee (X%)" label uses the live setting; per-booking detail computes the rate from the stored amounts | Tier 7 | Matches standard accounting practice: retroactive rate changes would corrupt historical records. |
 | `calculateBookingAmount` API | Takes explicit `commissionRate: number` parameter (no default). Client forms accept it as a prop from the parent server page; server actions fetch via `getPlatformSettings()` before calling | Tier 7 | Keeps the math library client-safe (no server-only imports bleed into client bundles). `lib/platform-settings-server.ts` holds the DB helpers behind `import "server-only"`. |
 | Availability summary drift | **Deferred** — `CarListing.availabilitySummary` stays a stored string, updated inside `saveAvailabilityRulesAction` (and host equivalent) on every rule save | Tier 7 | Works today; `saveAvailabilityRulesAction` is the only place rules change, and it already writes the summary alongside the rules. Revisit if a second code path starts mutating rules. |
+| Booking time precision | **Daily-only** — UI exposes pickup/return as dates, no time-of-day picker | Tier 9 | Matches PH P2P norms + current inclusive-calendar-day billing. `Booking.pickupDate` / `returnDate` columns stay `DateTime` so we can add hours later without a migration. |
+| Vehicle type taxonomy | **Fixed enum** — Sedan, SUV, Hatchback, MPV, Van, Pickup, Coupe | Tier 9 | New `CarListing.vehicleType: String` column. Validation enforced in app (Zod). Adding a new type later = one-line code change + (optional) backfill. |
+| Vehicle features taxonomy | **Fixed checkbox list** — stored as `CarListing.features: String[]`. Initial list: Air conditioning, Bluetooth, USB ports, Backup camera, GPS, Dashcam, Child seat, Sunroof, Cruise control, Apple CarPlay, Android Auto, Keyless entry, Auto wipers | Tier 9 | Hosts pick from the list when creating/editing a listing. List lives in a single constant in the app. |
+| Review model | **Single 1-5 stars + optional comment**, customer-only, after `status=COMPLETED`, one per booking, no edit, no host reply | Tier 10 | User picked simplest over the originally-described 5-category breakdown (cleanliness/maintenance/communication/convenience/accuracy). Multi-category split can be added later without breaking existing rows (new columns nullable, single rating stays primary). |
+| Favorites scope | **Login required** — heart icon only works for logged-in customers; logged-out click bounces to `/login?redirectTo=...` | Tier 11 | No localStorage/anonymous merge logic. Single source of truth = `Favorite` table. |
+| Host public profile scope | **Listings + bio + member-since only** at `/hosts/[id]`. No response-rate / response-time / verified-badge stats | Tier 11 | Adds nullable `Owner.bio`. Member-since uses existing `Owner.createdAt`. Stats deferred to a future polish tier. |
+| Location search input | **Free-text + city chips coexist** — text input does case-insensitive partial match on `CarListing.location`; existing city chips remain below as quick-filter shortcuts | Tier 9 | Best of both: power users type, browsers tap chips. No schema change. |
 
 ### Deferred cross-cutting topics
 
@@ -401,17 +408,118 @@ Host permissions enforced via `proxy.ts` (Owner lookup by email) + server action
 
 ---
 
+## Tier 9 — Browse & filter overhaul (customer marketplace polish)
+
+Customer-facing browse + listing detail upgrade. Schema additions but no new tables. Cards become the entry point to the booking funnel; listing detail picks up gallery + features.
+
+### 9.1 Schema migration `add_listing_taxonomy`
+- [ ] Add `CarListing.vehicleType: String` (validated in Zod against fixed enum)
+- [ ] Add `CarListing.features: String[]` (default `[]`)
+- [ ] Backfill existing rows: assign sensible `vehicleType` per car (mock data has brand+model — pick by hand or default to `Sedan`); `features` stays empty
+- [ ] Update `prisma/seed.ts` so reseeded mock data has both fields populated
+
+### 9.2 Hero search on `/listings`
+- [ ] Replace current header with hero search bar: `Where` (free-text), `From` (date), `Until` (date), submit button
+- [ ] City chips persist below as quick-filter shortcuts
+- [ ] All inputs URL-state-driven (`?location=&from=&until=`)
+- [ ] Free-text "Where" → Prisma `contains` + `mode: insensitive` against `CarListing.location`
+- [ ] Date range pre-fills booking form on listing detail click-through (carry `?from=&until=` to `/listings/[id]`)
+- [ ] Date range further constrains results: only show listings available across the entire range (reuses `findRangeConflicts` from Tier 5)
+
+### 9.3 Filter rail
+- [ ] Sidebar (desktop) / drawer (mobile) with: price range slider, vehicle type (multi-checkbox), transmission (Manual/Automatic), fuel type (multi-checkbox), seating capacity (≥2/4/5/7), make+model search-within-filter
+- [ ] All filter state in URL params; preserves on share + reload
+- [ ] "Clear filters" button visible when any filter active
+
+### 9.4 Sort
+- [ ] Dropdown: Price low-to-high (default), Price high-to-low, Newest first
+- [ ] Sort state in URL (`?sort=price_asc`)
+- [ ] "Top rated" sort option deferred until Tier 10 ships and `avgRating` exists
+
+### 9.5 Card redesign
+- [ ] New card component shows: thumbnail (primary photo), name (brand + model), `₱X / day`, year, transmission, fuel type, seats, **heart placeholder (disabled, wired in Tier 11)**
+- [ ] Hover/focus state, click → listing detail with date params if set
+- [ ] Loading skeletons + empty state copy ("No cars match these filters")
+
+### 9.6 Listing detail upgrade
+- [ ] Photo gallery viewer — lightbox or full-screen on click; keyboard nav (← → Esc); preserves existing photo array on `CarListing.photos`
+- [ ] "Vehicle features" section renders `features` array as a checklist (with simple icons or check-bullets)
+- [ ] Trip-date editor stays — already exists from Tier 4
+- [ ] Host name on detail becomes a `<Link>` to `/hosts/[ownerId]` (Tier 11 wires the destination; Tier 9 leaves it as a dead-link or guards with `if hostProfileEnabled`)
+
+### 9.7 Admin + host listing forms
+- [ ] Admin create + edit forms ([app/(admin)/car-listings/new](app/(admin)/car-listings/new) + edit): add `vehicleType` dropdown, `features` checkbox group
+- [ ] Host create + edit forms (mirror): same additions
+- [ ] Server actions (admin + host) accept the new fields in Zod schemas
+
+---
+
+## Tier 10 — Reviews & ratings
+
+Customer reviews tied to completed bookings. Aggregates feed cards + listing detail.
+
+### 10.1 Schema migration `add_reviews`
+- [ ] New `Review` table:
+  - `id`, `bookingId` (unique — enforces one review per booking), `customerId`, `listingId`, `ownerId`
+  - `rating: Int` (1-5, validated)
+  - `comment: String?`
+  - `createdAt`, `updatedAt`
+- [ ] Add `CarListing.avgRating: Float @default(0)` and `CarListing.reviewCount: Int @default(0)` (denormalized for fast card rendering)
+
+### 10.2 Customer review flow
+- [ ] On `/account/bookings/[id]` for COMPLETED bookings without an existing review → show "Leave a review" CTA → opens form (route or modal — TBD at execution)
+- [ ] Form: 5-star picker + optional comment textarea
+- [ ] `app/actions/reviews.ts#createReviewAction`: customer-only (`requireCustomer()`), booking-ownership check, status=COMPLETED check, single-review-per-booking constraint (DB unique on `bookingId`)
+- [ ] Action runs `avgRating` + `reviewCount` recalc atomically (transaction with the insert)
+- [ ] Activity log entry on review create
+
+### 10.3 Display
+- [ ] Card stars + review count next to price
+- [ ] Listing detail: aggregate stars at top + reviews list (most recent first; paginate at 10/page)
+- [ ] Empty state: "No reviews yet — be the first after your trip"
+- [ ] Stars on host profile (Tier 11) as a future hook — Tier 10 just exposes the data
+
+### 10.4 Sort hook (small follow-on)
+- [ ] Add "Top rated" option to the sort dropdown introduced in Tier 9.4
+
+---
+
+## Tier 11 — Favorites + public host profile
+
+Smaller tier; closes out the customer iteration.
+
+### 11.1 Schema migration `add_favorites_and_host_bio`
+- [ ] New `Favorite` table: `id`, `customerId`, `listingId`, `createdAt`. Unique constraint on `(customerId, listingId)`.
+- [ ] Add `Owner.bio: String?` (nullable; max length validated in Zod, e.g. 500 chars)
+
+### 11.2 Favorites
+- [ ] `app/actions/favorites.ts#toggleFavoriteAction` — customer-only, idempotent (insert if absent, delete if present)
+- [ ] Heart icon on cards + listing detail wires to action; logged-out click → `/login?redirectTo=...` and returns
+- [ ] New `/account/favorites` page — grid of customer's hearted listings (re-uses card component from Tier 9.5)
+- [ ] UserMenu gets a "Favorites" link
+
+### 11.3 Public host profile
+- [ ] New route `app/hosts/[id]/page.tsx` (public, no auth required)
+- [ ] Renders: host name, bio, "Member since YYYY" (from `Owner.createdAt`), grid of host's ACTIVE listings (re-use card)
+- [ ] 404 if owner not VERIFIED (don't expose pending/suspended hosts publicly)
+- [ ] Listing detail's host-name link from Tier 9.6 now resolves correctly
+
+### 11.4 Host edits their own bio
+- [ ] Add a host profile edit page (e.g. `/host/profile`) — currently no host-side profile editor exists. Single-field form for `bio`.
+- [ ] Host UserMenu gets a "Profile" link
+- [ ] `app/actions/host-profile.ts#updateBioAction` — `requireHost()`, Zod-validated, activity log
+
+---
+
 ## Tier 8 — Parked / deferred (don't build yet)
 
 - Full accounting flow wiring (cash-only details TBD)
 - `OwnerPayout` batch processing + commission invoicing
-- [app/(admin)/customers/page.tsx](app/(admin)/customers/page.tsx) — placeholder, full CRM
 - [app/(admin)/reports/page.tsx](app/(admin)/reports/page.tsx) — placeholder
 - Payment gateway integration (PayMongo / GCash / Maya)
 - Dispute / refund workflow
 - Tax fields (VAT/withholding)
 - "Message owner" feature (placeholder button on listing detail)
-- "Save listing" / favorites
 
 ---
 
@@ -546,9 +654,12 @@ Minimal post-deploy check:
 
 Rough order of execution (each tier blocks the next unless noted):
 
-1. Tier 1 (foundation) — **blocking**
-2. Tier 2 (owners) + Tier 7 (dashboard fixes) in parallel
-3. Tier 3 (listings) + schema additions for Tier 5
-4. Tier 4 (customer flow) + Tier 6 (host dashboard) can run in parallel once Tier 3 is done
-5. Tier 5 (booking management) — wraps up the loop; depends on Tier 4 for real inbound bookings
-6. Tier 8 stays parked until product direction is clearer
+1. Tier 1 (foundation) — **blocking** ✅
+2. Tier 2 (owners) + Tier 7 (dashboard fixes) in parallel ✅
+3. Tier 3 (listings) + schema additions for Tier 5 ✅
+4. Tier 4 (customer flow) + Tier 6 (host dashboard) can run in parallel once Tier 3 is done ✅
+5. Tier 5 (booking management) — wraps up the loop; depends on Tier 4 for real inbound bookings ✅
+6. **Tier 9 (browse & filter overhaul)** — schema-light; touches `/listings`, listing detail, admin+host create forms. **Next up.**
+7. **Tier 10 (reviews & ratings)** — depends on Tier 9 (cards + detail layout) and on COMPLETED bookings existing.
+8. **Tier 11 (favorites + host public profile)** — depends on Tier 9 (card component reuse) and Tier 10 (host stars hook). Smallest of the three.
+9. Tier 8 (accounting / payouts / payment gateway) stays parked until product direction is clearer.

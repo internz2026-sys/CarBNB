@@ -1,55 +1,158 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Search, Users, Zap, Settings2, ShieldCheck } from "lucide-react";
+import { Search } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
-import { ListingStatus, OwnerStatus } from "@/types";
-import { resolveListingPhotoUrl } from "@/lib/listing-assets";
+import { BookingStatus, ListingStatus } from "@/types";
 import { getCurrentViewer } from "@/lib/current-user";
 import { UserMenu } from "@/components/layout/user-menu";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { checkAvailability } from "@/lib/availability";
+import { ListingCard } from "./listing-card";
+import { FilterPanel } from "./filter-panel";
+import { SortDropdown } from "./sort-dropdown";
 
 export const dynamic = "force-dynamic";
 
-const peso = new Intl.NumberFormat("en-PH", {
-  style: "currency",
-  currency: "PHP",
-  maximumFractionDigits: 0,
-});
+const SORT_OPTIONS = [
+  { slug: "price_asc", label: "Price: Low to High" },
+  { slug: "price_desc", label: "Price: High to Low" },
+  { slug: "newest", label: "Newest first" },
+];
 
-type ListingsSearchParams = Promise<{ search?: string; location?: string }>;
+type ListingsSearchParams = Promise<{
+  search?: string;
+  location?: string;
+  from?: string;
+  until?: string;
+  types?: string | string[];
+  transmission?: string;
+  fuels?: string | string[];
+  seats?: string;
+  minPrice?: string;
+  maxPrice?: string;
+  sort?: string;
+}>;
+
+function toArray(v: string | string[] | undefined): string[] {
+  if (!v) return [];
+  return Array.isArray(v) ? v : [v];
+}
+
+function safeNum(v: string | undefined): number | null {
+  if (!v) return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+}
 
 export default async function PublicListingsPage({
   searchParams,
 }: {
   searchParams: ListingsSearchParams;
 }) {
-  const { search, location } = await searchParams;
-  const trimmedSearch = search?.trim() ?? "";
-  const trimmedLocation = location?.trim() ?? "";
+  const sp = await searchParams;
+  const search = sp.search?.trim() ?? "";
+  const location = sp.location?.trim() ?? "";
+  const from = sp.from?.trim() ?? "";
+  const until = sp.until?.trim() ?? "";
+  const types = toArray(sp.types);
+  const transmission = sp.transmission?.trim() ?? "";
+  const fuels = toArray(sp.fuels);
+  const seats = safeNum(sp.seats);
+  const minPrice = safeNum(sp.minPrice);
+  const maxPrice = safeNum(sp.maxPrice);
+  const sort = sp.sort && SORT_OPTIONS.some((o) => o.slug === sp.sort)
+    ? sp.sort
+    : "price_asc";
+
   const viewer = await getCurrentViewer();
 
   const where: Prisma.CarListingWhereInput = {
     status: ListingStatus.ACTIVE,
   };
-  if (trimmedSearch) {
+  if (search) {
     where.OR = [
-      { brand: { contains: trimmedSearch, mode: "insensitive" } },
-      { model: { contains: trimmedSearch, mode: "insensitive" } },
-      { location: { contains: trimmedSearch, mode: "insensitive" } },
+      { brand: { contains: search, mode: "insensitive" } },
+      { model: { contains: search, mode: "insensitive" } },
     ];
   }
-  if (trimmedLocation) {
-    where.location = { contains: trimmedLocation, mode: "insensitive" };
+  if (location) {
+    where.location = { contains: location, mode: "insensitive" };
+  }
+  if (types.length > 0) where.vehicleType = { in: types };
+  if (transmission) where.transmission = transmission;
+  if (fuels.length > 0) where.fuelType = { in: fuels };
+  if (seats !== null) where.seatingCapacity = { gte: seats };
+  if (minPrice !== null || maxPrice !== null) {
+    where.dailyPrice = {};
+    if (minPrice !== null) where.dailyPrice.gte = minPrice;
+    if (maxPrice !== null) where.dailyPrice.lte = maxPrice;
   }
 
+  let orderBy: Prisma.CarListingOrderByWithRelationInput;
+  switch (sort) {
+    case "price_desc":
+      orderBy = { dailyPrice: "desc" };
+      break;
+    case "newest":
+      orderBy = { createdAt: "desc" };
+      break;
+    case "price_asc":
+    default:
+      orderBy = { dailyPrice: "asc" };
+      break;
+  }
+
+  // Date-range filter is the only one not expressible directly in Prisma — we
+  // need each listing's rules + exceptions + active bookings to call
+  // checkAvailability(). Fetch them inline so the in-memory filter pass below
+  // doesn't need a second round-trip.
   const listings = await db.carListing.findMany({
     where,
-    orderBy: { createdAt: "desc" },
-    include: { owner: { select: { fullName: true, status: true } } },
+    orderBy,
+    include: {
+      owner: { select: { fullName: true, status: true } },
+      availabilityRules: true,
+      exceptions: true,
+      bookings: {
+        where: {
+          status: {
+            in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ONGOING],
+          },
+        },
+        select: { pickupDate: true, returnDate: true, status: true },
+      },
+    },
   });
 
-  // Location chips — show top handful of distinct locations from active listings.
+  let filteredListings = listings;
+  let dateFilterApplied = false;
+  if (from && until) {
+    const pickup = new Date(`${from}T00:00:00`);
+    const ret = new Date(`${until}T00:00:00`);
+    if (
+      !Number.isNaN(pickup.getTime()) &&
+      !Number.isNaN(ret.getTime()) &&
+      pickup <= ret
+    ) {
+      dateFilterApplied = true;
+      filteredListings = listings.filter((l) => {
+        const result = checkAvailability({
+          pickup,
+          returnDate: ret,
+          rules: l.availabilityRules,
+          exceptions: l.exceptions,
+          existingBookings: l.bookings,
+        });
+        return result.ok;
+      });
+    }
+  }
+
+  // Location chips — top distinct locations from active listings (unfiltered
+  // by current selection so the user can pivot quickly).
   const allActive = await db.carListing.findMany({
     where: { status: ListingStatus.ACTIVE },
     select: { location: true },
@@ -62,6 +165,38 @@ export default async function PublicListingsPage({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
     .map(([loc]) => loc);
+
+  // Build a chip href that preserves all OTHER params (so toggling a city
+  // doesn't reset filters or dates).
+  function chipHref(loc: string | null): { pathname: string; query: Record<string, string | string[]> } {
+    const q: Record<string, string | string[]> = {};
+    if (search) q.search = search;
+    if (from) q.from = from;
+    if (until) q.until = until;
+    if (types.length > 0) q.types = types;
+    if (transmission) q.transmission = transmission;
+    if (fuels.length > 0) q.fuels = fuels;
+    if (seats !== null) q.seats = String(seats);
+    if (minPrice !== null) q.minPrice = String(minPrice);
+    if (maxPrice !== null) q.maxPrice = String(maxPrice);
+    if (sort !== "price_asc") q.sort = sort;
+    if (loc) q.location = loc;
+    return { pathname: "/listings", query: q };
+  }
+
+  const filterState = {
+    search,
+    location,
+    from,
+    until,
+    types,
+    transmission,
+    fuels,
+    seats: seats !== null ? String(seats) : "",
+    minPrice: minPrice !== null ? String(minPrice) : "",
+    maxPrice: maxPrice !== null ? String(maxPrice) : "",
+    sort,
+  };
 
   return (
     <div className="min-h-screen bg-surface pb-20 font-sans">
@@ -127,42 +262,87 @@ export default async function PublicListingsPage({
           </p>
         </div>
 
-        <form action="/listings" className="mb-6" method="GET">
-          {trimmedLocation ? (
-            <input name="location" type="hidden" value={trimmedLocation} />
-          ) : null}
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
-            <input
-              className="h-12 w-full rounded-full bg-surface-container-low pl-11 pr-4 text-sm text-on-surface outline-none shadow-[0_8px_24px_rgb(19_27_46_/_0.04)]"
-              defaultValue={trimmedSearch}
-              name="search"
-              placeholder="Search by brand, model, or city..."
-              type="text"
-            />
+        {/* Hero search — Where + From + Until + submit. Submitting starts a
+            fresh search (no hidden filter inputs) so users can quickly pivot. */}
+        <form
+          action="/listings"
+          className="mb-4 rounded-2xl bg-surface-container-lowest p-3 shadow-[0_8px_24px_rgb(19_27_46_/_0.06)]"
+          method="GET"
+        >
+          <div className="grid gap-2 md:grid-cols-[1.4fr_1fr_1fr_auto]">
+            <label className="relative flex flex-col">
+              <span className="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Where
+              </span>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-on-surface-variant" />
+                <Input
+                  className="border-0 bg-transparent pl-9 focus-visible:ring-0"
+                  defaultValue={location}
+                  name="location"
+                  placeholder="City or area"
+                />
+              </div>
+            </label>
+            <label className="flex flex-col">
+              <span className="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                From
+              </span>
+              <Input
+                className="border-0 bg-transparent focus-visible:ring-0"
+                defaultValue={from}
+                name="from"
+                type="date"
+              />
+            </label>
+            <label className="flex flex-col">
+              <span className="px-3 pt-1 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Until
+              </span>
+              <Input
+                className="border-0 bg-transparent focus-visible:ring-0"
+                defaultValue={until}
+                name="until"
+                type="date"
+              />
+            </label>
+            <Button className="md:self-stretch" size="lg" type="submit">
+              <Search className="mr-2 size-4" />
+              Search
+            </Button>
+          </div>
+          <div className="mt-2 px-3">
+            <details className="text-sm">
+              <summary className="cursor-pointer text-on-surface-variant hover:text-primary">
+                Search by brand or model name
+              </summary>
+              <div className="mt-2">
+                <Input
+                  defaultValue={search}
+                  name="search"
+                  placeholder="e.g. Toyota Vios, Fortuner, Honda…"
+                />
+              </div>
+            </details>
           </div>
         </form>
 
+        {/* City chips — quick filter shortcuts. Preserve everything else. */}
         {topLocations.length > 0 ? (
           <div className="mb-8 flex flex-wrap gap-2">
             <Link
               className={cn(
                 "rounded-full px-4 py-2 text-sm font-semibold transition",
-                !trimmedLocation
+                !location
                   ? "bg-primary text-on-primary"
                   : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high",
               )}
-              href={{
-                pathname: "/listings",
-                query: trimmedSearch ? { search: trimmedSearch } : {},
-              }}
+              href={chipHref(null)}
             >
               All cities
             </Link>
             {topLocations.map((loc) => {
-              const active = trimmedLocation === loc;
-              const q: Record<string, string> = { location: loc };
-              if (trimmedSearch) q.search = trimmedSearch;
+              const active = location === loc;
               return (
                 <Link
                   className={cn(
@@ -171,7 +351,7 @@ export default async function PublicListingsPage({
                       ? "bg-primary text-on-primary"
                       : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high",
                   )}
-                  href={{ pathname: "/listings", query: q }}
+                  href={chipHref(loc)}
                   key={loc}
                 >
                   {loc}
@@ -181,86 +361,46 @@ export default async function PublicListingsPage({
           </div>
         ) : null}
 
-        {listings.length === 0 ? (
-          <div className="rounded-2xl bg-surface-container-low p-12 text-center">
-            <p className="text-lg font-semibold text-on-surface">No listings match your search</p>
-            <p className="mt-2 text-sm text-on-surface-variant">
-              Try a different keyword or clear your filters.
-            </p>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-on-surface-variant">
+            <span className="font-bold text-on-surface">{filteredListings.length}</span>{" "}
+            {filteredListings.length === 1 ? "car" : "cars"}
+            {dateFilterApplied ? " available for your dates" : " found"}
+          </p>
+          <SortDropdown options={SORT_OPTIONS} value={sort} />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[16rem_1fr]">
+          <aside className="lg:sticky lg:top-20 lg:self-start">
+            <FilterPanel state={filterState} />
+          </aside>
+
+          <div>
+            {filteredListings.length === 0 ? (
+              <div className="rounded-2xl bg-surface-container-low p-12 text-center">
+                <p className="text-lg font-semibold text-on-surface">
+                  {dateFilterApplied
+                    ? "No cars are available across those dates"
+                    : "No listings match your search"}
+                </p>
+                <p className="mt-2 text-sm text-on-surface-variant">
+                  Try a different keyword, broader dates, or clear your filters.
+                </p>
+              </div>
+            ) : (
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {filteredListings.map((listing) => (
+                  <ListingCard
+                    fromParam={from || undefined}
+                    key={listing.id}
+                    listing={listing}
+                    untilParam={until || undefined}
+                  />
+                ))}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {listings.map((listing) => {
-              const primaryPhoto = listing.photos[0];
-              const photoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
-              const verified = listing.owner.status === OwnerStatus.VERIFIED;
-              return (
-                <Link
-                  className="group overflow-hidden rounded-2xl bg-surface-container-lowest shadow-[0_8px_24px_rgb(19_27_46_/_0.06)] transition hover:shadow-[0_12px_32px_rgb(19_27_46_/_0.1)]"
-                  href={`/listings/${listing.id}`}
-                  key={listing.id}
-                >
-                  <div className="relative aspect-[4/3] bg-surface-container">
-                    {photoUrl ? (
-                      <Image
-                        alt={`${listing.brand} ${listing.model}`}
-                        className="object-cover transition group-hover:scale-[1.02]"
-                        fill
-                        sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                        src={photoUrl}
-                      />
-                    ) : (
-                      <div className="grid size-full place-items-center text-sm text-on-surface-variant">
-                        Photo coming soon
-                      </div>
-                    )}
-                    {verified ? (
-                      <div className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-primary">
-                        <ShieldCheck className="size-3" />
-                        Verified Host
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h2 className="font-headline text-lg font-bold text-on-surface">
-                          {listing.brand} {listing.model}
-                        </h2>
-                        <p className="text-xs text-on-surface-variant">
-                          {listing.year} · {listing.location}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">
-                          From
-                        </p>
-                        <p className="font-headline text-lg font-bold text-primary">
-                          {peso.format(listing.dailyPrice)}
-                          <span className="text-xs font-normal text-on-surface-variant">/day</span>
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex items-center gap-4 text-xs text-on-surface-variant">
-                      <span className="inline-flex items-center gap-1">
-                        <Users className="size-3" />
-                        {listing.seatingCapacity}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Settings2 className="size-3" />
-                        {listing.transmission}
-                      </span>
-                      <span className="inline-flex items-center gap-1">
-                        <Zap className="size-3" />
-                        {listing.fuelType}
-                      </span>
-                    </div>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
+        </div>
       </section>
     </div>
   );

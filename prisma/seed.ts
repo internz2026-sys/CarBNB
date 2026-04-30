@@ -86,6 +86,8 @@ async function main() {
         color: c.color,
         transmission: c.transmission,
         fuelType: c.fuelType,
+        vehicleType: c.vehicleType ?? "SEDAN",
+        features: c.features ?? [],
         seatingCapacity: c.seatingCapacity,
         location: c.location,
         dailyPrice: c.dailyPrice,

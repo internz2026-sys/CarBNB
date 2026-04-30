@@ -8,6 +8,10 @@ import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { DayOfWeek, ListingStatus, OwnerStatus } from "@/types";
+import {
+  VEHICLE_TYPE_SLUGS,
+  VEHICLE_FEATURE_SLUGS,
+} from "@/lib/listing-taxonomy";
 
 const CAR_PHOTOS_BUCKET = "car-photos";
 const CAR_DOCUMENTS_BUCKET = "car-documents";
@@ -90,6 +94,8 @@ const CreateListingSchema = z.object({
   color: z.string().trim().min(1, "Color is required"),
   transmission: z.enum(["Automatic", "Manual"]),
   fuelType: z.enum(["Gasoline", "Diesel", "Electric", "Hybrid"]),
+  vehicleType: z.enum(VEHICLE_TYPE_SLUGS),
+  features: z.array(z.enum(VEHICLE_FEATURE_SLUGS)).default([]),
   seatingCapacity: z.coerce.number().int().min(2, "Minimum 2 seats").max(15, "Maximum 15 seats"),
   location: z.string().trim().min(1, "Location is required"),
   dailyPrice: z.coerce.number().positive("Daily price must be positive"),
@@ -110,6 +116,8 @@ export async function createHostListingAction(
     color: formData.get("color"),
     transmission: formData.get("transmission"),
     fuelType: formData.get("fuelType"),
+    vehicleType: formData.get("vehicleType"),
+    features: formData.getAll("features"),
     seatingCapacity: formData.get("seatingCapacity"),
     location: formData.get("location"),
     dailyPrice: formData.get("dailyPrice"),
@@ -142,6 +150,8 @@ export async function createHostListingAction(
       color: data.color,
       transmission: data.transmission,
       fuelType: data.fuelType,
+      vehicleType: data.vehicleType,
+      features: data.features,
       seatingCapacity: data.seatingCapacity,
       location: data.location,
       dailyPrice: data.dailyPrice,
@@ -181,6 +191,8 @@ const UpdateListingSchema = z.object({
   color: z.string().trim().min(1, "Color is required"),
   transmission: z.enum(["Automatic", "Manual"]),
   fuelType: z.enum(["Gasoline", "Diesel", "Electric", "Hybrid"]),
+  vehicleType: z.enum(VEHICLE_TYPE_SLUGS),
+  features: z.array(z.enum(VEHICLE_FEATURE_SLUGS)).default([]),
   seatingCapacity: z.coerce.number().int().min(2).max(15),
   location: z.string().trim().min(1, "Location is required"),
   dailyPrice: z.coerce.number().positive(),
@@ -207,6 +219,8 @@ export async function updateHostListingAction(
     color: formData.get("color"),
     transmission: formData.get("transmission"),
     fuelType: formData.get("fuelType"),
+    vehicleType: formData.get("vehicleType"),
+    features: formData.getAll("features"),
     seatingCapacity: formData.get("seatingCapacity"),
     location: formData.get("location"),
     dailyPrice: formData.get("dailyPrice"),
@@ -236,6 +250,8 @@ export async function updateHostListingAction(
       color: data.color,
       transmission: data.transmission,
       fuelType: data.fuelType,
+      vehicleType: data.vehicleType,
+      features: data.features,
       seatingCapacity: data.seatingCapacity,
       location: data.location,
       dailyPrice: data.dailyPrice,

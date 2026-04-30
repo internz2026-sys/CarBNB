@@ -36,6 +36,8 @@ export function BookingCTA({
   listingStatus,
   unavailableDates,
   viewerKind,
+  initialFromIso,
+  initialUntilIso,
 }: {
   commissionRate: number;
   dailyPrice: number;
@@ -43,6 +45,8 @@ export function BookingCTA({
   listingStatus: string;
   unavailableDates: string[];
   viewerKind: "guest" | "customer" | "other";
+  initialFromIso?: string;
+  initialUntilIso?: string;
 }) {
   const listingBookable = listingStatus === ListingStatus.ACTIVE;
 
@@ -85,6 +89,8 @@ export function BookingCTA({
     <CustomerBookingDialog
       commissionRate={commissionRate}
       dailyPrice={dailyPrice}
+      initialFromIso={initialFromIso}
+      initialUntilIso={initialUntilIso}
       listingId={listingId}
       unavailableDates={unavailableDates}
     />
@@ -113,14 +119,27 @@ function CustomerBookingDialog({
   dailyPrice,
   listingId,
   unavailableDates,
+  initialFromIso,
+  initialUntilIso,
 }: {
   commissionRate: number;
   dailyPrice: number;
   listingId: string;
   unavailableDates: string[];
+  initialFromIso?: string;
+  initialUntilIso?: string;
 }) {
-  const [open, setOpen] = useState(false);
-  const [range, setRange] = useState<DateRange | undefined>(undefined);
+  // Auto-open the dialog when the user arrives with both dates pre-set from
+  // the listings hero search — the click-through implies they want to book.
+  const initialRange: DateRange | undefined =
+    initialFromIso && initialUntilIso
+      ? {
+          from: new Date(`${initialFromIso}T00:00:00`),
+          to: new Date(`${initialUntilIso}T00:00:00`),
+        }
+      : undefined;
+  const [open, setOpen] = useState(Boolean(initialRange));
+  const [range, setRange] = useState<DateRange | undefined>(initialRange);
   const [state, formAction, pending] = useActionState<BookingActionState, FormData>(
     createBookingAction,
     null,

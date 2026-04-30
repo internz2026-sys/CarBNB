@@ -112,6 +112,8 @@ export interface CarListing {
   color: string;
   transmission: Transmission;
   fuelType: FuelType;
+  vehicleType?: string;
+  features?: string[];
   seatingCapacity: number;
   location: string;
   dailyPrice: number;
