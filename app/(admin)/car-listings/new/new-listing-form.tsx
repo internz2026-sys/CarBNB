@@ -23,6 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createListingAction, type ListingActionState } from "@/app/actions/listings";
+import {
+  VEHICLE_TYPES,
+  VEHICLE_FEATURES,
+  vehicleTypeLabel,
+} from "@/lib/listing-taxonomy";
 
 type OwnerOption = { id: string; fullName: string; email: string };
 
@@ -30,6 +35,7 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
   const [ownerId, setOwnerId] = useState<string>(owners[0]?.id ?? "");
   const [transmission, setTransmission] = useState<string>("Automatic");
   const [fuelType, setFuelType] = useState<string>("Gasoline");
+  const [vehicleType, setVehicleType] = useState<string>(VEHICLE_TYPES[0].slug);
   const [state, formAction, pending] = useActionState<ListingActionState, FormData>(
     createListingAction,
     null,
@@ -57,6 +63,7 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
       <input name="ownerId" type="hidden" value={ownerId} />
       <input name="transmission" type="hidden" value={transmission} />
       <input name="fuelType" type="hidden" value={fuelType} />
+      <input name="vehicleType" type="hidden" value={vehicleType} />
 
       {state?.error ? (
         <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">{state.error}</div>
@@ -171,6 +178,21 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
         </CardHeader>
         <CardContent className="grid gap-6 md:grid-cols-3">
           <div className="space-y-2">
+            <Label htmlFor="vehicleTypeTrigger">Vehicle Type</Label>
+            <Select onValueChange={(v) => v && setVehicleType(v)} value={vehicleType}>
+              <SelectTrigger className="w-full" id="vehicleTypeTrigger">
+                <span className="text-left">{vehicleTypeLabel(vehicleType)}</span>
+              </SelectTrigger>
+              <SelectContent>
+                {VEHICLE_TYPES.map((t) => (
+                  <SelectItem key={t.slug} value={t.slug}>
+                    {t.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
             <Label htmlFor="transmission">Transmission</Label>
             <Select onValueChange={(v) => v && setTransmission(v)} value={transmission}>
               <SelectTrigger id="transmission">
@@ -244,6 +266,33 @@ export function NewListingForm({ owners }: { owners: OwnerOption[] }) {
               name="description"
               placeholder="Describe the vehicle's features, condition, and any rental rules..."
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Vehicle Features</CardTitle>
+          <CardDescription>
+            Tick everything this vehicle has. Renters use these to compare cars.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {VEHICLE_FEATURES.map((f) => (
+              <label
+                className="flex items-center gap-2 rounded-md border border-border p-2.5 text-sm hover:bg-muted/40 cursor-pointer"
+                key={f.slug}
+              >
+                <input
+                  className="size-4 rounded border-border text-primary focus:ring-primary"
+                  name="features"
+                  type="checkbox"
+                  value={f.slug}
+                />
+                <span>{f.label}</span>
+              </label>
+            ))}
           </div>
         </CardContent>
       </Card>

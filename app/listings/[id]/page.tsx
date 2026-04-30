@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Bell,
   CalendarDays,
-  Heart,
   MapPin,
   MessageCircleMore,
   Settings2,
@@ -23,12 +22,15 @@ import { createClient } from "@/utils/supabase/server";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getUnavailableDates } from "@/lib/availability";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
+import { vehicleFeatureLabel } from "@/lib/listing-taxonomy";
 import { BookingCTA } from "./booking-cta";
+import { PhotoGallery } from "./photo-gallery";
 
 export const dynamic = "force-dynamic";
 
 type ListingDetailPageProps = {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ from?: string; until?: string }>;
 };
 
 const peso = new Intl.NumberFormat("en-PH", {
@@ -75,8 +77,12 @@ function getOwnerInitials(name: string) {
     .toUpperCase();
 }
 
-export default async function ListingDetailPage({ params }: ListingDetailPageProps) {
+export default async function ListingDetailPage({
+  params,
+  searchParams,
+}: ListingDetailPageProps) {
   const { id } = await params;
+  const { from: fromParam, until: untilParam } = await searchParams;
 
   const listing = await db.carListing.findUnique({
     where: { id },
@@ -127,8 +133,19 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
 
   const primaryPhoto = listing.photos[0] ?? null;
   const primaryPhotoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
+  const galleryPhotos = listing.photos.map((path) => ({
+    url: resolveListingPhotoUrl(path),
+  }));
   const isVerifiedOwner = listing.owner.status === OwnerStatus.VERIFIED;
   const locationLabel = getLocationLabel(listing.location);
+
+  // Resolve feature slugs to displayable labels in the order they're stored.
+  // Unknown slugs (e.g. legacy data) are passed through as raw text.
+  const featureLabels = listing.features.map((slug) => ({
+    slug,
+    label: vehicleFeatureLabel(slug),
+  }));
+  const featureCount = featureLabels.length;
 
   // Host trip count: number of past + present bookings on any of this owner's cars.
   const hostTrips = await db.booking.count({ where: { ownerId: listing.owner.id } });
@@ -234,6 +251,17 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
             </div>
           </ScrollReveal>
 
+          {galleryPhotos.length > 1 ? (
+            <ScrollReveal delay={40}>
+              <section className="mb-8">
+                <h2 className="mb-3 font-headline text-base font-bold text-on-surface">
+                  Photos ({galleryPhotos.length})
+                </h2>
+                <PhotoGallery alt={`${listing.brand} ${listing.model}`} photos={galleryPhotos} />
+              </section>
+            </ScrollReveal>
+          ) : null}
+
           <ScrollReveal delay={60}>
             <div className="mb-8 grid grid-cols-3 gap-3">
               <div className="rounded-[1.25rem] bg-surface-container-low p-4 text-center shadow-[0_8px_24px_rgb(19_27_46_/_0.04)]">
@@ -284,6 +312,27 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
             </section>
           </ScrollReveal>
 
+          {featureCount > 0 ? (
+            <ScrollReveal delay={130}>
+              <section className="mb-8">
+                <h2 className="mb-4 font-headline text-xl font-bold text-on-surface">
+                  Vehicle Features
+                </h2>
+                <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {featureLabels.map((f) => (
+                    <li
+                      className="flex items-center gap-2 rounded-md bg-surface-container px-3 py-2 text-sm text-on-surface"
+                      key={f.slug}
+                    >
+                      <span aria-hidden className="text-primary">✓</span>
+                      <span>{f.label}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            </ScrollReveal>
+          ) : null}
+
           <ScrollReveal delay={150}>
             <section className="mb-8 rounded-[1.5rem] bg-surface-container p-5 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
               <div className="flex items-center gap-4">
@@ -302,9 +351,12 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
                     Owner
                   </p>
-                  <h3 className="truncate text-base font-bold text-on-surface">
-                    {listing.owner.fullName}
-                  </h3>
+                  <Link
+                    className="truncate text-base font-bold text-on-surface hover:text-primary"
+                    href={`/hosts/${listing.owner.id}`}
+                  >
+                    <h3 className="truncate">{listing.owner.fullName}</h3>
+                  </Link>
                   <div className="mt-1 flex items-center gap-2">
                     <div className="flex items-center gap-1 text-amber-500">
                       <Star className="size-4 fill-current" />
@@ -314,6 +366,13 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
                     <span className="text-xs text-on-surface-variant">
                       {hostTrips} trips
                     </span>
+                    <span className="text-outline">·</span>
+                    <Link
+                      className="text-xs font-semibold text-primary hover:underline"
+                      href={`/hosts/${listing.owner.id}`}
+                    >
+                      View profile
+                    </Link>
                   </div>
                 </div>
               </div>
@@ -346,6 +405,8 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
       <BookingCTA
         commissionRate={settings.commissionRate}
         dailyPrice={listing.dailyPrice}
+        initialFromIso={fromParam}
+        initialUntilIso={untilParam}
         listingId={listing.id}
         listingStatus={listing.status}
         unavailableDates={unavailableDates.map((d) => d.toISOString())}

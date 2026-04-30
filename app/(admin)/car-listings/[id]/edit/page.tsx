@@ -73,6 +73,8 @@ export default async function EditListingPage({
         color: listing.color,
         transmission: listing.transmission,
         fuelType: listing.fuelType,
+        vehicleType: listing.vehicleType,
+        features: listing.features,
         seatingCapacity: listing.seatingCapacity,
         location: listing.location,
         dailyPrice: listing.dailyPrice,

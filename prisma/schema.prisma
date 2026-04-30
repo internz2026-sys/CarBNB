@@ -51,6 +51,8 @@ model CarListing {
   color               String
   transmission        String   // AUTOMATIC, MANUAL
   fuelType            String   // GASOLINE, DIESEL, ELECTRIC, HYBRID
+  vehicleType         String   @default("SEDAN") // SEDAN, SUV, HATCHBACK, MPV, VAN, PICKUP, COUPE
+  features            String[] @default([])      // slugs from VEHICLE_FEATURES (lib/listing-taxonomy.ts)
   seatingCapacity     Int
   location            String
   dailyPrice          Float
