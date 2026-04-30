@@ -13,7 +13,7 @@ const signupRoles = [
     description:
       "Set up your marketplace profile to list vehicles, manage schedules, and track payouts.",
     namePlaceholder: "Alex Rivera",
-    emailPlaceholder: "host@carbnb.com",
+    emailPlaceholder: "host@drivexp.com",
     actionLabel: "Create Host Account",
     icon: ShieldCheck,
   },
@@ -24,7 +24,7 @@ const signupRoles = [
     description:
       "Save favorite cars, manage your trips, and book curated vehicles with confidence.",
     namePlaceholder: "Jamie Cruz",
-    emailPlaceholder: "traveler@carbnb.com",
+    emailPlaceholder: "traveler@drivexp.com",
     actionLabel: "Create Customer Account",
     icon: UserRound,
   },
@@ -41,7 +41,7 @@ export default function SignupPage() {
             </div>
             <div>
               <div className="font-headline text-xl font-black tracking-tight text-primary">
-                carBNB
+                DriveXP
               </div>
               <div className="text-[10px] uppercase tracking-[0.22em] text-on-surface-variant">
                 Account Sign-up

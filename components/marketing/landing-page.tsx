@@ -158,7 +158,7 @@ export default async function LandingPage() {
   const testimonials = [
     {
       quote:
-        "carBNB made hosting feel premium instead of stressful. I can finally treat my car like an asset, not just a parked expense.",
+        "DriveXP made hosting feel premium instead of stressful. I can finally treat my car like an asset, not just a parked expense.",
       name: testimonialOwner?.fullName ?? "Verified Host",
       role: "Host in Metro Manila",
     },
@@ -180,7 +180,7 @@ export default async function LandingPage() {
             </div>
             <div>
               <div className="font-headline text-lg font-extrabold tracking-tight text-primary">
-                carBNB
+                DriveXP
               </div>
               <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
                 Premium Car Sharing
@@ -273,7 +273,7 @@ export default async function LandingPage() {
                   <span className="text-primary-container">curated income</span>.
                 </h1>
                 <p className="mt-6 max-w-xl text-lg leading-8 text-on-surface-variant sm:text-xl">
-                  carBNB brings verified hosts, confident renters, and premium operations
+                  DriveXP brings verified hosts, confident renters, and premium operations
                   together in one peer-to-peer marketplace built for modern city travel.
                 </p>
 
@@ -414,7 +414,7 @@ export default async function LandingPage() {
                   Sharing built with hospitality, not friction
                 </h2>
                 <p className="mt-5 text-lg leading-8 text-on-surface-variant">
-                  Choose your path in the carBNB ecosystem, whether you want a polished
+                  Choose your path in the DriveXP ecosystem, whether you want a polished
                   drive for the weekend or a better return on a parked asset.
                 </p>
               </div>
@@ -586,7 +586,7 @@ export default async function LandingPage() {
             <ScrollReveal>
               <div className="mx-auto max-w-3xl text-center">
                 <div className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary">
-                  The carBNB Advantage
+                  The DriveXP Advantage
                 </div>
                 <h2 className="mt-4 font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl">
                   High-trust travel without the template feel
@@ -680,7 +680,7 @@ export default async function LandingPage() {
                   </h2>
                   <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-white/82 sm:text-xl">
                     Whether you want your dream weekend car or a stronger return from your
-                    vehicle, carBNB gives you a calmer way to move.
+                    vehicle, DriveXP gives you a calmer way to move.
                   </p>
                   <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
                     <Link
@@ -713,7 +713,7 @@ export default async function LandingPage() {
                 </div>
                 <div>
                   <div className="font-headline text-xl font-extrabold text-on-surface">
-                    carBNB
+                    DriveXP
                   </div>
                   <div className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
                     Peer-to-peer marketplace
@@ -765,7 +765,7 @@ export default async function LandingPage() {
             <div>
               <h3 className="font-headline text-lg font-bold text-on-surface">Contact</h3>
               <div className="mt-5 space-y-3 text-sm text-on-surface-variant">
-                <div>support@carbnb.com</div>
+                <div>support@drivexp.com</div>
                 <div>+63 917 000 0000</div>
                 <div>Built for Metro Manila hosts and renters.</div>
               </div>
@@ -774,7 +774,7 @@ export default async function LandingPage() {
         </div>
 
         <div className="mx-auto mt-12 max-w-7xl text-xs text-on-surface-variant">
-          Copyright 2026 carBNB Marketplace. Made for the road and the people behind it.
+          Copyright 2026 DriveXP Marketplace. Made for the road and the people behind it.
         </div>
       </footer>
     </div>

@@ -68,7 +68,7 @@ export default async function PublicListingsPage({
       <header className="sticky top-0 z-30 bg-[rgb(250_248_255_/_0.85)] shadow-[0_8px_24px_rgb(19_27_46_/_0.04)] backdrop-blur-lg">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
           <Link className="font-headline text-2xl font-black tracking-tight text-primary" href="/">
-            carBNB
+            DriveXP
           </Link>
           <div className="flex items-center gap-5">
             {viewer.kind === "customer" ? (

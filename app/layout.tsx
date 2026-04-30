@@ -21,8 +21,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "CarBnb Admin",
-  description: "Admin dashboard for CarBnb - peer-to-peer car rental marketplace",
+  title: "DriveXP Admin",
+  description: "Admin dashboard for DriveXP - peer-to-peer car rental marketplace",
 };
 
 export default function RootLayout({

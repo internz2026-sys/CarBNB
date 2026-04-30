@@ -20,7 +20,7 @@ export default async function LoginPage({
                 <CarFront className="size-6" />
               </div>
               <div>
-                <div className="font-headline text-2xl font-black tracking-tight">carBNB</div>
+                <div className="font-headline text-2xl font-black tracking-tight">DriveXP</div>
                 <div className="text-xs uppercase tracking-[0.24em] text-white/70">
                   Marketplace Access
                 </div>
@@ -69,7 +69,7 @@ export default async function LoginPage({
               </div>
             </div>
             <CardTitle className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-              CarBnb Log-in
+              DriveXP Log-in
             </CardTitle>
             <CardDescription className="mx-auto max-w-md text-sm leading-6 text-on-surface-variant">
               Sign in with the experience that matches how you use the marketplace.
@@ -117,7 +117,7 @@ export default async function LoginPage({
               account or a customer account.
             </div>
             <p className="w-full text-center text-xs text-on-surface-variant">
-              CarBnb MVP Prototype Version 1.0.0
+              DriveXP MVP Prototype Version 1.0.0
             </p>
           </CardFooter>
         </Card>

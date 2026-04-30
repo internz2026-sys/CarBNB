@@ -47,11 +47,11 @@ export async function generateMetadata({
   });
 
   if (!car) {
-    return { title: "Listing Not Found | carBNB" };
+    return { title: "Listing Not Found | DriveXP" };
   }
 
   return {
-    title: `${car.brand} ${car.model} | carBNB Listing Details`,
+    title: `${car.brand} ${car.model} | DriveXP Listing Details`,
     description: car.description ?? `View details and reserve the ${car.brand} ${car.model}.`,
   };
 }
@@ -150,7 +150,7 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
           </Link>
 
           <div className="font-headline text-2xl font-black tracking-tight text-primary">
-            carBNB
+            DriveXP
           </div>
 
           <div className="flex items-center gap-2">
