@@ -149,9 +149,14 @@ export default async function ListingDetailPage({ params }: ListingDetailPagePro
             <ArrowLeft className="size-5" />
           </Link>
 
-          <div className="font-headline text-2xl font-black tracking-tight text-primary">
-            DriveXP
-          </div>
+          <Image
+            alt="DriveXP"
+            className="h-7 w-auto"
+            height={28}
+            priority
+            src="/driveXP-logo-wordmark.png"
+            width={113}
+          />
 
           <div className="flex items-center gap-2">
             <button

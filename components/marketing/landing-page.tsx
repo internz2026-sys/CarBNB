@@ -3,7 +3,6 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
-  CarFront,
   CircleDollarSign,
   Headphones,
   MapPin,
@@ -174,18 +173,15 @@ export default async function LandingPage() {
     <div className="min-h-screen bg-surface text-on-surface selection:bg-primary-fixed selection:text-on-primary-fixed">
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full bg-surface/70 px-4 py-3 shadow-[0_10px_30px_rgb(19_27_46_/_0.08)] backdrop-blur-xl sm:px-6">
-          <Link className="flex items-center gap-3" href="/">
-            <div className="grid size-10 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] text-on-primary shadow-[0_10px_26px_rgb(0_82_204_/_0.24)]">
-              <CarFront className="size-5" />
-            </div>
-            <div>
-              <div className="font-headline text-lg font-extrabold tracking-tight text-primary">
-                DriveXP
-              </div>
-              <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
-                Premium Car Sharing
-              </div>
-            </div>
+          <Link className="flex items-center" href="/">
+            <Image
+              alt="DriveXP"
+              className="h-9 w-auto"
+              height={36}
+              priority
+              src="/driveXP-logo-wordmark.png"
+              width={145}
+            />
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
@@ -707,18 +703,15 @@ export default async function LandingPage() {
         <div className="mx-auto grid max-w-7xl gap-12 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
           <ScrollReveal>
             <div>
-              <div className="flex items-center gap-3">
-                <div className="grid size-11 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] text-on-primary">
-                  <CarFront className="size-5" />
-                </div>
-                <div>
-                  <div className="font-headline text-xl font-extrabold text-on-surface">
-                    DriveXP
-                  </div>
-                  <div className="text-xs uppercase tracking-[0.24em] text-on-surface-variant">
-                    Peer-to-peer marketplace
-                  </div>
-                </div>
+              <Image
+                alt="DriveXP"
+                className="h-10 w-auto"
+                height={40}
+                src="/driveXP-logo-wordmark.png"
+                width={161}
+              />
+              <div className="mt-3 text-xs uppercase tracking-[0.24em] text-on-surface-variant">
+                Peer-to-peer marketplace
               </div>
               <p className="mt-6 max-w-sm text-sm leading-7 text-on-surface-variant">
                 Redefining the way people move by connecting trusted hosts with explorers
