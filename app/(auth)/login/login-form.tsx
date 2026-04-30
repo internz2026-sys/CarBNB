@@ -15,7 +15,7 @@ const roleContent = {
     description:
       "Access listings, availability, bookings, and payout tools built for marketplace hosts.",
     emailLabel: "Host Email",
-    emailPlaceholder: "host@carbnb.com",
+    emailPlaceholder: "host@drivexp.com",
     passwordId: "host-password",
     emailId: "host-email",
     submitLabel: "Enter Host Dashboard",
@@ -28,7 +28,7 @@ const roleContent = {
     description:
       "Review saved cars, upcoming trips, and marketplace activity from one place.",
     emailLabel: "Customer Email",
-    emailPlaceholder: "traveler@carbnb.com",
+    emailPlaceholder: "traveler@drivexp.com",
     passwordId: "customer-password",
     emailId: "customer-email",
     submitLabel: "Enter Marketplace",
