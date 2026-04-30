@@ -1,4 +1,4 @@
-import { CarFront } from "lucide-react";
+import Image from "next/image";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
@@ -16,8 +16,15 @@ export default async function LoginPage({
         <section className="hidden rounded-[2.25rem] bg-[linear-gradient(145deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] p-8 text-on-primary shadow-[0_22px_60px_rgb(0_82_204_/_0.2)] lg:flex lg:flex-col lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <div className="grid size-12 place-items-center rounded-full bg-white/14">
-                <CarFront className="size-6" />
+              <div className="grid size-12 place-items-center rounded-full bg-white p-2 shadow-[0_8px_20px_rgb(0_0_0_/_0.18)]">
+                <Image
+                  alt=""
+                  className="h-8 w-auto"
+                  height={32}
+                  priority
+                  src="/driveXP-logo-icon.png"
+                  width={23}
+                />
               </div>
               <div>
                 <div className="font-headline text-2xl font-black tracking-tight">DriveXP</div>
@@ -64,9 +71,14 @@ export default async function LoginPage({
         <Card className="my-auto w-full rounded-[2.25rem] border-none bg-surface-container-lowest shadow-[0_22px_60px_rgb(19_27_46_/_0.08)]">
           <CardHeader className="space-y-3 px-6 pb-3 pt-8 text-center sm:px-8">
             <div className="flex justify-center lg:hidden">
-              <div className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
-                <CarFront className="size-7" />
-              </div>
+              <Image
+                alt="DriveXP"
+                className="h-12 w-auto"
+                height={48}
+                priority
+                src="/driveXP-logo-icon.png"
+                width={35}
+              />
             </div>
             <CardTitle className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
               DriveXP Log-in

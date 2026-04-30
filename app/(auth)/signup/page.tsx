@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { CarFront, ShieldCheck, UserRound } from "lucide-react";
+import Image from "next/image";
+import { ShieldCheck, UserRound } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -35,18 +36,15 @@ export default function SignupPage() {
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-center justify-between">
-          <Link className="flex items-center gap-3" href="/">
-            <div className="grid size-11 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] text-on-primary shadow-[0_10px_24px_rgb(0_82_204_/_0.18)]">
-              <CarFront className="size-5" />
-            </div>
-            <div>
-              <div className="font-headline text-xl font-black tracking-tight text-primary">
-                DriveXP
-              </div>
-              <div className="text-[10px] uppercase tracking-[0.22em] text-on-surface-variant">
-                Account Sign-up
-              </div>
-            </div>
+          <Link className="flex items-center" href="/">
+            <Image
+              alt="DriveXP"
+              className="h-10 w-auto"
+              height={40}
+              priority
+              src="/driveXP-logo-wordmark.png"
+              width={161}
+            />
           </Link>
 
           <Link
