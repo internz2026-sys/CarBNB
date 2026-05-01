@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, Settings2, ShieldCheck, Users, Zap } from "lucide-react";
+import { Heart, Settings2, ShieldCheck, Star, Users, Zap } from "lucide-react";
 import { OwnerStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { vehicleTypeLabel } from "@/lib/listing-taxonomy";
@@ -24,6 +24,8 @@ type ListingCardProps = {
     vehicleType: string;
     seatingCapacity: number;
     photos: string[];
+    avgRating: number;
+    reviewCount: number;
     owner: { status: string };
   };
   // Optional date params to thread to the listing detail page so the booking
@@ -101,6 +103,15 @@ export function ListingCard({ listing, fromParam, untilParam }: ListingCardProps
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-surface-variant">
+          {listing.reviewCount > 0 ? (
+            <span className="inline-flex items-center gap-1">
+              <Star className="size-3 fill-amber-400 text-amber-400" />
+              <span className="font-semibold text-on-surface">
+                {listing.avgRating.toFixed(1)}
+              </span>
+              <span>({listing.reviewCount})</span>
+            </span>
+          ) : null}
           <span className="inline-flex items-center gap-1">
             <Users className="size-3" />
             {listing.seatingCapacity}

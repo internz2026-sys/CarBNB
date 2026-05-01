@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ArrowLeft, CalendarDays, Car, MapPin, User } from "lucide-react";
+import { ArrowLeft, CalendarDays, Car, MapPin, Star, User } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CancelBookingForm } from "./cancel-booking-form";
+import { ReviewForm } from "./review-form";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,9 @@ export default async function CustomerBookingDetailPage({
         },
       },
       owner: { select: { fullName: true, contactNumber: true } },
+      review: {
+        select: { id: true, rating: true, comment: true, createdAt: true },
+      },
     },
   });
 
@@ -221,9 +225,52 @@ export default async function CustomerBookingDetailPage({
           </div>
         ) : null}
 
+        {booking.status === BookingStatus.COMPLETED && booking.review ? (
+          <Card className="border-border/50 shadow-sm mt-8">
+            <CardHeader className="pb-3 border-b border-border">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Star className="size-4 fill-amber-400 text-amber-400" />
+                Your review
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-3">
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star
+                    className={
+                      booking.review!.rating >= n
+                        ? "size-5 fill-amber-400 text-amber-400"
+                        : "size-5 text-on-surface-variant"
+                    }
+                    key={n}
+                  />
+                ))}
+                <span className="ml-2 text-sm font-medium">
+                  {booking.review.rating} / 5
+                </span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  · {format(booking.review.createdAt, "MMM d, yyyy")}
+                </span>
+              </div>
+              {booking.review.comment ? (
+                <p className="whitespace-pre-wrap text-sm text-on-surface">
+                  {booking.review.comment}
+                </p>
+              ) : (
+                <p className="text-sm italic text-muted-foreground">No comment.</p>
+              )}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {booking.status === BookingStatus.COMPLETED && !booking.review ? (
+          <ReviewForm bookingId={booking.id} />
+        ) : null}
+
         {booking.status !== BookingStatus.PENDING &&
         booking.status !== BookingStatus.CANCELLED &&
-        booking.status !== BookingStatus.REJECTED ? (
+        booking.status !== BookingStatus.REJECTED &&
+        booking.status !== BookingStatus.COMPLETED ? (
           <p className="mt-8 text-center text-xs text-muted-foreground">
             Need to cancel this booking? Contact your admin — once we&apos;ve confirmed a
             reservation, changes go through them directly.
