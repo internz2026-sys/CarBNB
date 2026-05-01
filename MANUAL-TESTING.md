@@ -1128,9 +1128,136 @@ Five small UX cleanup items found during T9-T11 manual testing: landing-page Bro
 
 ---
 
+## Tier 13 — Host trip-lifecycle actions
+
+Hosts gain Start + Complete trip controls on `/host/bookings/[id]`. Admin keeps the same controls in parallel; first-mover wins. Mark-paid and cancel stay admin-only. The host has direct ground truth (handed over the keys, got the car back), so giving them this control reduces the lag where admin-as-bureaucrat was transcribing what the host already knew. Supersedes the Tier 6 "platform owns the lifecycle" decision (see BACKLOG.md decisions table).
+
+### Prerequisites
+
+- All Tier 12 prerequisites
+- A verified host with at least one ACTIVE listing
+- A customer who can book against that host's listing
+
+### T13-A — Host Start Rental (CONFIRMED → ONGOING)
+
+**Setup**
+1. As customer, book a CONFIRMED-able trip (any future range with availability) against the verified host's listing. Booking starts as PENDING.
+2. As host, log in and navigate to `/host/bookings/[id]` for the new booking. Status PENDING.
+3. Click **Accept Booking**. Status transitions to CONFIRMED. Action card flips to a new "Trip ready to start?" card.
+
+**Start Rental — happy path**
+4. The "Trip ready to start?" card shows: header text, a description, and a blue **Start Rental** button with a key icon.
+5. Click **Start Rental**. Button shows "Starting...". Status transitions to ONGOING.
+6. Page reloads. Status badge in the header is now ONGOING (blue).
+7. The action card flips again to "Trip finished?" (the Complete card).
+8. The Rental Schedule card now shows a **Rental Started** timestamp matching now (e.g. "May 1, 2026 · 3:42 PM").
+
+**Verify in DB**
+9. Open Prisma Studio. Find the Booking row. `status = "Ongoing"`, `rentalStartedAt` is the timestamp you saw on the page.
+
+**Activity log entry**
+10. Log in as admin → `/dashboard`. Recent activity feed has a new `HOST_BOOKING_STARTED` entry: *"Host [email] started rental for booking [ref] ([carName])"*.
+
+**Status guard — try to Start an already-ongoing booking via DevTools**
+11. Stay on `/host/bookings/[id]` for the now-ONGOING booking. The action card shows the Complete UI, not Start.
+12. *(Advanced bypass)* Use DevTools to manually submit `hostStartRentalAction` against the same bookingId. Server should return: **"Only confirmed bookings can be started. This one is 'Ongoing'."**
+
+### T13-B — Host Complete Rental (ONGOING → COMPLETED)
+
+**Setup**
+1. Continue from T13-A with an ONGOING booking, OR create a fresh one and walk it to ONGOING.
+
+**Complete Rental — happy path**
+2. The "Trip finished?" card shows: header text, description, and a green **Complete Rental** button with a package icon.
+3. Click **Complete Rental**. Button shows "Completing...". Status transitions to COMPLETED.
+4. Page reloads. Status badge is now COMPLETED (emerald).
+5. The action card disappears (no host actions remain on a COMPLETED booking — admin handles MarkPaid).
+6. The Rental Schedule card now shows a **Rental Completed** timestamp matching now.
+
+**Verify in DB**
+7. Prisma Studio: `status = "Completed"`, `rentalCompletedAt` is the timestamp.
+
+**Activity log entry**
+8. Admin `/dashboard` → activity feed has a new `HOST_BOOKING_COMPLETED` entry: *"Host [email] completed rental for booking [ref] ([carName])"*.
+
+**Customer side reflects the change**
+9. Log out. Log in as the customer who owns the booking. Navigate to `/account/bookings/[id]`.
+10. Status badge shows COMPLETED.
+11. The "Leave a review" form is now visible (Tier 10 entry point).
+
+### T13-C — Admin still has the same controls (no regression)
+
+**Setup**
+1. Set up a fresh booking trail: customer books → host accepts (CONFIRMED).
+
+**Admin Start Rental**
+2. As admin, navigate to `/bookings/[id]` (admin booking detail).
+3. The action panel still has **Start Rental** as before.
+4. Click. Status → ONGOING. Verify in DB.
+5. Activity log entry is `BOOKING_START` with description *"Admin [email] started booking..."* — distinct from the host's entry format (admin's entry doesn't have the `HOST_` prefix).
+
+**Admin Complete Rental**
+6. While the booking is ONGOING, click **Complete Rental** on `/bookings/[id]`.
+7. Status → COMPLETED. Activity log entry: `BOOKING_COMPLETE` (admin format).
+
+**Admin still has MarkPaid + Cancel exclusively**
+8. On the COMPLETED booking, **Mark as Paid** is still on `/bookings/[id]` and not on `/host/bookings/[id]`.
+9. Cancel/Reject dialogs on the admin side stay unchanged.
+
+### T13-D — First-mover wins (host vs admin race)
+
+**Setup**
+1. Create a booking, walk to CONFIRMED.
+2. Open `/host/bookings/[id]` in one window (logged in as host).
+3. Open `/bookings/[id]` in another window (logged in as admin).
+
+**Host wins the start**
+4. On the host window, click **Start Rental**. Status transitions to ONGOING.
+5. On the admin window, click **Start Rental**. Server should return an error visible inline: *"Cannot start a booking whose current status is 'Ongoing'."* — admin's status guard catches the already-transitioned state.
+6. Refresh the admin window. The action panel now shows the Complete option (matches the actual ONGOING status).
+
+**Admin wins the complete**
+7. On the admin window (still ONGOING), click **Complete Rental**. Status → COMPLETED.
+8. On the host window, click **Complete Rental**. Server returns: *"Only ongoing bookings can be completed. This one is 'Completed'."*
+9. Refresh the host window. The action card disappears (no host actions on COMPLETED).
+
+### T13-E — Ownership scope (host can't act on other hosts' bookings)
+
+**Setup**
+1. Two verified hosts, each with at least one listing.
+2. Customer books a trip against Host A's car. Host A confirms it (CONFIRMED).
+
+**Forge attempt**
+3. Log in as Host B. Navigate directly to `/host/bookings/[Host-A's-booking-id]`.
+4. Page should 404 (the page-level guard checks `booking.ownerId === host.id`).
+5. *(Advanced bypass)* In DevTools, manually submit `hostStartRentalAction` against Host A's bookingId while logged in as Host B.
+6. Server returns: **"You cannot act on bookings you don't own."** (from `requireOwnBooking` helper).
+
+**Status guard still applies**
+7. Try the same forge against a booking that's not in CONFIRMED state. Server returns the status-mismatch error first if the bookingId is at least valid for the host; otherwise the ownership error.
+
+### T13-F — PENDING / SUSPENDED hosts blocked from acting
+
+**Setup**
+1. As admin, suspend a host (or set Owner.status = SUSPENDED in Prisma Studio).
+2. Log in as that host.
+
+**Page-level rendering**
+3. Navigate to `/host/bookings/[id]` for one of their bookings (status CONFIRMED). Per the existing host layout guard, the host might land on the locked dashboard view rather than the booking detail.
+4. *(Advanced)* If the page renders, the action card might still appear since rendering is permissive — but the action itself is the real gate.
+
+**Action-level rejection**
+5. Submit `hostStartRentalAction` (or hostCompleteRentalAction). Server returns: **"Host account must be verified before acting on bookings."** from `requireHost()`.
+
+**Re-VERIFY**
+6. As admin, set Owner.status back to VERIFIED.
+7. The same host can now Start / Complete normally.
+
+---
+
 ## Adding a new tier
 
-When you ship a new tier (T13+), append a section here following the same structure:
+When you ship a new tier (T14+), append a section here following the same structure:
 
 ```markdown
 ## Tier N — <Tier Name>
