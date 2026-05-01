@@ -884,9 +884,253 @@ Login-required favorites with idempotent toggle, public host profile page, host 
 
 ---
 
+## Tier 12 — Polish pass on T9-T11
+
+Five small UX cleanup items found during T9-T11 manual testing: landing-page Browse Cars CTA wired to `/listings`, date params preserved through the guest login round-trip, admin/host heart click shows an inline message instead of redirecting them to login, load-more reviews failures show an inline error with a retry button, and a "Recent activity" feed surfaces ActivityLogEntry rows on the admin dashboard.
+
+### Prerequisites
+
+- All Tier 11 prerequisites
+- For T12-D: a listing with 6+ reviews. Easiest seed: `npx tsx scripts/seed-test-reviews.ts <listingId> 10`.
+- For T12-E: enough activity to populate the feed. If the DB is fresh, perform a couple of mutations first (edit a listing, leave a review, change platform settings) so the feed has rows to render.
+
+### T12-A — Landing page Browse Cars CTA
+
+**Setup**
+1. Run `npm run dev`. Open `http://localhost:3000/` in incognito (logged out).
+
+**Hero CTA**
+2. Scroll to the hero section (top of page).
+3. Find the prominent "Browse Cars" button (large pill button with gradient background and an arrow icon).
+4. Hover — should not show any anchor scroll preview, just the link.
+5. Click. Should navigate to `/listings` (NOT scroll down to `#featured-listings`).
+6. URL bar reads `http://localhost:3000/listings`.
+
+**Header nav**
+7. Click the back button to return to `/`.
+8. In the top nav (between the logo and right-side buttons), find the "Browse Cars" link (smaller, text-style nav item).
+9. Click. Should navigate to `/listings`.
+
+**Featured Listings section**
+10. Back to `/`. Scroll down to the "Featured Listings" section.
+11. To the right of the section heading, there should be a link **"Browse all cars →"** (replaces the old "View featured car").
+12. Click. Should navigate to `/listings`.
+
+**Across viewer roles (regression)**
+13. Log in as a customer. Open `/`. Hero "Browse Cars" → `/listings`. Header nav "Browse Cars" → `/listings`. UserMenu's Browse cars → `/listings`. All three should agree.
+14. Log out, log in as admin. Same behavior.
+15. Log out, log in as host. Same behavior.
+
+### T12-B — Date threading through login redirect
+
+**Setup**
+1. Have a customer account ready.
+2. Make sure at least one ACTIVE listing has open availability for the next 2 weeks.
+
+**Guest path with dates — full round-trip**
+3. In incognito (logged out), navigate to `/listings`.
+4. In the hero search, set **From** = today + 5 days. Set **Until** = today + 7 days. Click **Search**.
+5. URL becomes `/listings?location=&from=YYYY-MM-DD&until=YYYY-MM-DD`.
+6. Click into any listing card.
+7. Detail URL becomes `/listings/[id]?from=YYYY-MM-DD&until=YYYY-MM-DD`.
+8. Bottom FixedBar shows the **"Log in to Reserve"** button (since you're logged out).
+9. **Hover the button** — the URL preview at the bottom of the browser should be:
+   `http://localhost:3000/login?redirectTo=%2Flistings%2F[id]%3Ffrom%3DYYYY-MM-DD%26until%3DYYYY-MM-DD`
+   (the `from` and `until` params are URL-encoded inside the `redirectTo`).
+10. Click **Log in to Reserve**. Lands on `/login?redirectTo=...`.
+11. Log in as customer (use the Customer tab).
+12. After login, you should be redirected to `/listings/[id]?from=YYYY-MM-DD&until=YYYY-MM-DD` — **with the dates preserved**.
+13. The booking dialog should **AUTO-OPEN** with the 3-day range pre-selected (per Tier 9's auto-open behavior).
+14. Submit or close as you like — the goal here is to confirm the dates survived the round-trip.
+
+**Guest path WITHOUT dates — should still work (regression)**
+15. Log out. Open a fresh listing detail directly without dates: `/listings/[id]`.
+16. Hover the **Log in to Reserve** button — URL should be `…/login?redirectTo=%2Flistings%2F[id]` (no `from`/`until` params).
+17. Click. Log in. Land on `/listings/[id]` (clean, no dates).
+18. Booking dialog should NOT auto-open (matches no-dates behavior).
+
+**Edge case: only `from` set, no `until`**
+19. Log out. Manually visit `/listings/[id]?from=YYYY-MM-DD` (no `until`).
+20. Hover Log in to Reserve — `redirectTo` should preserve only `from`.
+21. Log in. Land back with `?from=YYYY-MM-DD` only. Dialog won't auto-open (needs both dates), but the date is still in the URL.
+
+**Edge case: only `until` set, no `from`**
+22. Same as step 19 but with only `until` set. Same expected preservation behavior.
+
+**Sanity check — non-listing detail pages still redirect cleanly**
+23. Log out. Visit `/account/favorites` (proxy bounces guests). URL becomes `/login?redirectTo=%2Faccount%2Ffavorites`.
+24. Log in. Lands on `/account/favorites`.
+
+### T12-C — Admin/host heart-click inline message
+
+**Setup**
+1. Customer + admin + host accounts.
+2. Pick an ACTIVE listing for testing.
+
+**Customer baseline (regression check)**
+3. Log in as the **customer**. Open `/listings/[id]`.
+4. Click the heart in the FixedBar at the bottom. Heart fills rose, no inline message appears (success path is silent).
+5. Click again. Heart goes outline, no message.
+
+**Admin clicking heart — new inline message**
+6. Log out. Log in as **admin**. Open the same listing detail.
+7. The FixedBar shows: "This account isn't set up as a customer..." text on the left + outline heart on the right.
+8. Click the heart in the FixedBar.
+9. The page should NOT redirect to `/login`. Instead, a small dark toast-style bubble should appear above-or-below the heart with the text **"Only customer accounts can save favorites."**.
+10. The bubble auto-dismisses after about 3.5 seconds.
+11. Click the heart again — same message reappears (state resets).
+12. The heart icon stays outline (gray) the whole time.
+
+**Host clicking heart — same behavior**
+13. Log out. Log in as **host**. Open the listing detail.
+14. Same FixedBar message and same outline heart.
+15. Click. Same inline message: **"Only customer accounts can save favorites."** Auto-dismiss after 3.5s.
+
+**Admin clicking heart on a card (regression)**
+16. As admin, navigate to `/listings`. The hearts on cards should show outline.
+17. Click a card heart. Bubble appears anchored near the heart icon (top-right of card photo area). Same message.
+18. Auto-dismisses. Heart stays outline.
+
+**Host clicking heart on a card**
+19. As host, same behavior on `/listings` cards.
+
+**Multiple rapid clicks — no stacking, just resets the timer**
+20. As admin, click a card heart 5 times in quick succession.
+21. The bubble appears once. Each subsequent click resets the dismiss timer.
+22. After ~3.5s of no clicks, bubble dismisses.
+
+**Logged-out heart click — still redirects (regression)**
+23. Log out. Visit `/listings`. Click a card heart.
+24. Page redirects to `/login?redirectTo=...`.
+25. NO inline message.
+
+**Logged-out heart click on detail FixedBar**
+26. Visit `/listings/[id]` while logged out, click the heart in the FixedBar. Redirects to `/login?redirectTo=/listings/[id]`.
+
+**Visual / placement**
+27. The bubble should be a small rounded dark pill with white text, positioned near the heart (above-right for the detail variant; below-right for the card variant).
+28. Bubble doesn't overlap critical UI.
+29. Resize to mobile width — bubble still readable, doesn't overflow the viewport.
+
+### T12-D — Load-more reviews error UI
+
+**Setup**
+1. Listing with 6+ reviews. Run `npx tsx scripts/seed-test-reviews.ts <listingId> 10` if needed.
+2. Open `/listings/[that-listing-id]`. Confirm Reviews section shows the first 5 reviews + a **"View more reviews"** button.
+
+**Happy path — regression check**
+3. Click **View more reviews**. Button shows "Loading...". After ~1s, 5 more reviews append. Button stays visible if there are still more.
+4. Click again. Final batch appends. Button disappears. No error UI shown.
+
+**Trigger an error — offline mode**
+5. Refresh the listing detail page so we're back to the initial 5 + button state.
+6. Open browser DevTools → **Network** tab → set throttling to **Offline**.
+7. Click **View more reviews**. Button shows "Loading..." briefly.
+8. After the request fails, a **red error panel** should appear:
+   - Background: red-50 (light pink)
+   - Border: red-200
+   - Text: red-700
+   - Message: **"Couldn't load more reviews. Check your connection and try again."**
+   - Below the message: an outline-variant **"Try again"** button.
+
+**Recover from error**
+9. Without dismissing the error panel, set network throttling back to **No throttling**.
+10. Click **Try again**. Button shows "Retrying..." briefly.
+11. Request succeeds. Error panel disappears. The 5 next reviews append.
+12. The "View more reviews" button reappears below them (if more reviews exist).
+
+**Error during second batch**
+13. Click **View more reviews** to load batch 2 successfully (now 10 visible).
+14. Set throttling to Offline.
+15. Click **View more reviews** again. Loading → error panel renders.
+16. The 10 already-visible reviews stay rendered. The error panel appears below them.
+17. Disable throttling. Click **Try again**. Final batch loads. Error panel disappears.
+
+**Error panel persistence across button clicks (no double-click race)**
+18. With network offline, click **View more reviews** multiple times rapidly.
+19. Button is `disabled` while pending.
+20. After the first failure resolves, the error panel renders once.
+
+**Try again button keyboard accessibility**
+21. With error panel visible, Tab to the **Try again** button. Focus ring visible.
+22. Press Enter or Space. Should trigger the retry.
+
+**Sanity: error panel doesn't appear on hidden state**
+23. Find a listing with ≤ 5 reviews. Open it. NO View more button, NO error panel.
+24. The component returns null when there's nothing to load and no error.
+
+**Visual check**
+25. The error panel layout: message on top, Try again button below-left.
+26. Mobile width: panel and button stay readable.
+27. Stars / customer names / dates inside loaded review cards (above the error panel) render correctly.
+
+### T12-E — Recent activity feed on /dashboard
+
+**Setup**
+1. Have done some recent activity across roles (creating listings, editing bios, leaving reviews, toggling status, etc.). If the DB is fresh, do a couple of mutations first.
+2. Log in as admin. Navigate to `/dashboard`.
+
+**Section appears at the bottom**
+3. Scroll past the existing dashboard sections.
+4. Below the bookings table you should see a new section: **"Recent activity"** heading on the left, with **"Last N events"** subtitle on the right (where N is the count, max 10).
+5. Section is wrapped in a rounded card with a subtle border and shadow.
+
+**List rendering — populated state**
+6. The list shows up to 10 most recent `ActivityLogEntry` rows, ordered newest-first by `timestamp`.
+7. Each list item is a row with three columns:
+   - **Type chip** (left): small primary-colored pill showing the entry type (e.g. `system`, `owner`, `car`, `booking`)
+   - **Action + description** (middle): action code in monospace uppercase on top, description text below
+   - **Timestamp** (right): formatted as "MMM d, h:mm a"
+
+**Tier 10 + 11 entries render**
+8. Look for the action codes:
+   - `REVIEW_CREATED` — *"Customer [email] left a [N]-star review on booking [id]"*
+   - `HOST_BIO_UPDATED` — *"Host [email] updated their public bio"*
+   - `LISTING_UPDATED`, `LISTING_CREATED`, etc.
+   - `OWNER_VERIFIED`, `OWNER_SUSPENDED`, etc.
+9. Type chips correctly map: review → `booking` type, bio → `owner` type, listing → `car` type.
+
+**Trigger a new entry, refresh, see it appear**
+10. In another tab as admin, navigate to a listing edit page and change something trivial. Save.
+11. Go back to `/dashboard` and refresh.
+12. The new entry should be at the **TOP** of the list (newest-first sort).
+13. The entry that was previously 10th drops off (only 10 are shown).
+
+**Empty state**
+14. *(Hard to test without wiping DB.)* If the activity log table were empty, the section would show **"No activity yet."** in a muted card.
+
+**Visual checks**
+15. No hover state on rows (read-only list).
+16. Action code in monospace uppercase visually distinct from description.
+17. Long descriptions wrap to multiple lines without breaking the row.
+18. Type chip is a fixed width pill.
+19. Timestamp on the right doesn't wrap.
+
+**Mobile width**
+20. Resize the browser to ~640px (sm breakpoint).
+21. Each row stays as a horizontal flex (chip · text · time), not stacking vertically.
+22. Text truncation handles cleanly.
+
+**Performance / load**
+23. The query fetches only `take: 10` rows. Single server-rendered HTML response (no separate fetch).
+24. Hundreds of activity entries should not slow the dashboard noticeably (index on `timestamp` + `take: 10`).
+
+**Visibility scope**
+25. Admin-only (proxy-guarded).
+26. Customer / host UserMenus do not surface a link to the dashboard.
+27. As regression: as customer/host, try `/dashboard` — proxy redirects to `/`.
+
+**Sanity — admin actions write entries that appear here**
+28. As admin, approve a pending owner. Refresh dashboard.
+29. New `OWNER_VERIFIED` entry appears at the top.
+30. Change the platform commission rate in `/settings`. Refresh dashboard.
+31. New `PLATFORM_SETTINGS_UPDATED` entry appears.
+
+---
+
 ## Adding a new tier
 
-When you ship a new tier (T12+), append a section here following the same structure:
+When you ship a new tier (T13+), append a section here following the same structure:
 
 ```markdown
 ## Tier N — <Tier Name>
