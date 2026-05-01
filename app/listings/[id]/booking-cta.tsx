@@ -65,11 +65,19 @@ export function BookingCTA({
   }
 
   if (viewerKind === "guest") {
+    // Preserve any from/until selection through the login round-trip so the
+    // booking dialog auto-opens with the same dates after sign-in.
+    const detailParams = new URLSearchParams();
+    if (initialFromIso) detailParams.set("from", initialFromIso);
+    if (initialUntilIso) detailParams.set("until", initialUntilIso);
+    const detailUrl = detailParams.toString()
+      ? `/listings/${listingId}?${detailParams.toString()}`
+      : `/listings/${listingId}`;
     return (
       <FixedBar isFavorited={isFavorited} listingId={listingId}>
         <Link
           className="flex h-14 w-full items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-6 font-headline text-base font-bold text-on-primary shadow-[0_12px_28px_rgb(0_82_204_/_0.2)] transition hover:opacity-95"
-          href={`/login?redirectTo=${encodeURIComponent(`/listings/${listingId}`)}`}
+          href={`/login?redirectTo=${encodeURIComponent(detailUrl)}`}
         >
           <CalendarDays className="size-5" />
           Log in to Reserve
