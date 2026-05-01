@@ -211,6 +211,7 @@ export default async function LandingPage() {
                 fullName={viewer.fullName}
                 links={[
                   { label: "My bookings", href: "/account" },
+                  { label: "Favorites", href: "/account/favorites" },
                   { label: "Browse cars", href: "/listings" },
                 ]}
                 roleLabel="Customer"
@@ -231,6 +232,7 @@ export default async function LandingPage() {
                   { label: "Host dashboard", href: "/host/dashboard" },
                   { label: "My cars", href: "/host/cars" },
                   { label: "My bookings", href: "/host/bookings" },
+                  { label: "Profile", href: "/host/profile" },
                 ]}
                 roleLabel="Host"
               />
