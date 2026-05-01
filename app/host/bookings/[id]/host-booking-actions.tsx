@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, KeyRound, PackageCheck, XCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,8 +24,10 @@ import {
 } from "@/components/ui/select";
 import { BookingStatus } from "@/types";
 import {
+  hostCompleteRentalAction,
   hostConfirmBookingAction,
   hostRejectBookingAction,
+  hostStartRentalAction,
   type HostBookingActionState,
 } from "@/app/actions/host-bookings";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
@@ -37,22 +39,34 @@ export function HostBookingActions({
   bookingId: string;
   status: string;
 }) {
+  if (status === BookingStatus.PENDING) {
+    return <PendingActions bookingId={bookingId} />;
+  }
+  if (status === BookingStatus.CONFIRMED) {
+    return <StartRentalAction bookingId={bookingId} />;
+  }
+  if (status === BookingStatus.ONGOING) {
+    return <CompleteRentalAction bookingId={bookingId} />;
+  }
+  // COMPLETED / CANCELLED / REJECTED — nothing for the host to do here.
+  // The admin retains separate controls (mark paid, etc.) on the admin
+  // booking detail page.
+  return null;
+}
+
+function PendingActions({ bookingId }: { bookingId: string }) {
   const [confirmState, confirmAction, confirmPending] = useActionState<
     HostBookingActionState,
     FormData
   >(hostConfirmBookingAction, null);
-
-  // Hosts only act on PENDING bookings — admin owns the rest of the
-  // lifecycle. If the booking has moved past PENDING we render nothing.
-  if (status !== BookingStatus.PENDING) return null;
 
   return (
     <div className="rounded-xl bg-surface-container-lowest p-4 shadow-[0_8px_24px_rgb(19_27_46_/_0.06)] flex flex-col gap-3">
       <div>
         <p className="text-sm font-semibold text-on-surface">Respond to this request</p>
         <p className="text-xs text-on-surface-variant">
-          Accept to confirm the reservation, or reject with a reason. Once you confirm, the
-          admin handles pickup, return, and payment.
+          Accept to confirm the reservation, or reject with a reason. After confirming you
+          can start the trip when the customer picks up the car.
         </p>
       </div>
 
@@ -75,6 +89,84 @@ export function HostBookingActions({
       {confirmState?.error ? (
         <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
           {confirmState.error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function StartRentalAction({ bookingId }: { bookingId: string }) {
+  const [state, formAction, pending] = useActionState<HostBookingActionState, FormData>(
+    hostStartRentalAction,
+    null,
+  );
+
+  return (
+    <div className="rounded-xl bg-surface-container-lowest p-4 shadow-[0_8px_24px_rgb(19_27_46_/_0.06)] flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-semibold text-on-surface">Trip ready to start?</p>
+        <p className="text-xs text-on-surface-variant">
+          Mark the rental as started once the customer has picked up the car. The admin can
+          also do this from the bookings page.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <form action={formAction}>
+          <input name="bookingId" type="hidden" value={bookingId} />
+          <Button
+            className="bg-blue-600 hover:bg-blue-700"
+            disabled={pending}
+            type="submit"
+          >
+            <KeyRound className="w-4 h-4 mr-2" />
+            {pending ? "Starting..." : "Start Rental"}
+          </Button>
+        </form>
+      </div>
+
+      {state?.error ? (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          {state.error}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CompleteRentalAction({ bookingId }: { bookingId: string }) {
+  const [state, formAction, pending] = useActionState<HostBookingActionState, FormData>(
+    hostCompleteRentalAction,
+    null,
+  );
+
+  return (
+    <div className="rounded-xl bg-surface-container-lowest p-4 shadow-[0_8px_24px_rgb(19_27_46_/_0.06)] flex flex-col gap-3">
+      <div>
+        <p className="text-sm font-semibold text-on-surface">Trip finished?</p>
+        <p className="text-xs text-on-surface-variant">
+          Mark the rental as complete once the car is back in your possession. The admin
+          handles payment confirmation separately.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <form action={formAction}>
+          <input name="bookingId" type="hidden" value={bookingId} />
+          <Button
+            className="bg-emerald-600 hover:bg-emerald-700"
+            disabled={pending}
+            type="submit"
+          >
+            <PackageCheck className="w-4 h-4 mr-2" />
+            {pending ? "Completing..." : "Complete Rental"}
+          </Button>
+        </form>
+      </div>
+
+      {state?.error ? (
+        <div className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+          {state.error}
         </div>
       ) : null}
     </div>

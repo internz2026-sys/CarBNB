@@ -89,6 +89,103 @@ export async function hostConfirmBookingAction(
 }
 
 // ─────────────────────────────────────────────────────────────────────────
+// Trip lifecycle — Start (CONFIRMED → ONGOING) and Complete (ONGOING →
+// COMPLETED). Mirrors admin's startRentalAction / completeRentalAction with
+// ownership scope. Both host and admin can transition; first-mover wins via
+// the existing status guard. The host has direct ground truth (handed over
+// the keys, got the car back), so giving them this control reduces the lag
+// where admin-as-bureaucrat was transcribing what the host already knew.
+// ─────────────────────────────────────────────────────────────────────────
+
+export async function hostStartRentalAction(
+  _prev: HostBookingActionState,
+  formData: FormData,
+): Promise<HostBookingActionState> {
+  const host = await requireHost();
+
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+  if (!bookingId) return { error: "Missing booking id." };
+
+  const scope = await requireOwnBooking(bookingId, host.id);
+  if ("error" in scope) return { error: scope.error };
+  const booking = scope.booking;
+
+  if (booking.status !== BookingStatus.CONFIRMED) {
+    return {
+      error: `Only confirmed bookings can be started. This one is "${booking.status}".`,
+    };
+  }
+
+  await db.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: BookingStatus.ONGOING,
+      rentalStartedAt: new Date(),
+    },
+  });
+
+  await db.activityLogEntry.create({
+    data: {
+      action: "HOST_BOOKING_STARTED",
+      description: `Host ${host.email} started rental for booking ${booking.referenceNumber} (${booking.carName})`,
+      type: "booking",
+    },
+  });
+
+  revalidatePath("/host/bookings");
+  revalidatePath(`/host/bookings/${bookingId}`);
+  revalidatePath("/bookings");
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath("/account");
+  revalidatePath(`/account/bookings/${bookingId}`);
+  return null;
+}
+
+export async function hostCompleteRentalAction(
+  _prev: HostBookingActionState,
+  formData: FormData,
+): Promise<HostBookingActionState> {
+  const host = await requireHost();
+
+  const bookingId = String(formData.get("bookingId") ?? "").trim();
+  if (!bookingId) return { error: "Missing booking id." };
+
+  const scope = await requireOwnBooking(bookingId, host.id);
+  if ("error" in scope) return { error: scope.error };
+  const booking = scope.booking;
+
+  if (booking.status !== BookingStatus.ONGOING) {
+    return {
+      error: `Only ongoing bookings can be completed. This one is "${booking.status}".`,
+    };
+  }
+
+  await db.booking.update({
+    where: { id: bookingId },
+    data: {
+      status: BookingStatus.COMPLETED,
+      rentalCompletedAt: new Date(),
+    },
+  });
+
+  await db.activityLogEntry.create({
+    data: {
+      action: "HOST_BOOKING_COMPLETED",
+      description: `Host ${host.email} completed rental for booking ${booking.referenceNumber} (${booking.carName})`,
+      type: "booking",
+    },
+  });
+
+  revalidatePath("/host/bookings");
+  revalidatePath(`/host/bookings/${bookingId}`);
+  revalidatePath("/bookings");
+  revalidatePath(`/bookings/${bookingId}`);
+  revalidatePath("/account");
+  revalidatePath(`/account/bookings/${bookingId}`);
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
 // Reject — PENDING → REJECTED with reason (same slug set as admin cancel).
 // ─────────────────────────────────────────────────────────────────────────
 
