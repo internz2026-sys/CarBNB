@@ -115,12 +115,25 @@ export default async function ListingDetailPage({
   } = await supabase.auth.getUser();
 
   let viewerKind: "guest" | "customer" | "other" = "guest";
+  let isFavorited = false;
   if (user?.email) {
     const customer = await db.customer.findUnique({
       where: { email: user.email },
       select: { id: true },
     });
     viewerKind = customer ? "customer" : "other";
+    if (customer) {
+      const favorite = await db.favorite.findUnique({
+        where: {
+          customerId_listingId: {
+            customerId: customer.id,
+            listingId: listing.id,
+          },
+        },
+        select: { id: true },
+      });
+      isFavorited = Boolean(favorite);
+    }
   }
 
   const unavailableDates = getUnavailableDates({
@@ -490,6 +503,7 @@ export default async function ListingDetailPage({
         dailyPrice={listing.dailyPrice}
         initialFromIso={fromParam}
         initialUntilIso={untilParam}
+        isFavorited={isFavorited}
         listingId={listing.id}
         listingStatus={listing.status}
         unavailableDates={unavailableDates.map((d) => d.toISOString())}

@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getOwnerDocumentSignedUrl } from "@/lib/owner-documents";
+import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { OwnerStatus } from "@/types";
 import { format } from "date-fns";
 import Image from "next/image";
@@ -174,16 +175,25 @@ export default async function OwnerDetailPage({
                 </div>
               ) : (
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {ownerCars.map((car) => (
+                  {ownerCars.map((car) => {
+                    const primaryPhoto = car.photos[0];
+                    const photoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
+                    return (
                     <Link href={`/car-listings/${car.id}`} key={car.id} className="block group">
                       <Card className="overflow-hidden transition-all hover:border-primary/50 hover:shadow-md">
                         <div className="aspect-[16/9] relative bg-muted overflow-hidden">
-                          <Image
-                            src={car.photos[0]}
-                            alt={car.model}
-                            fill
-                            className="object-cover transition-transform group-hover:scale-105"
-                          />
+                          {photoUrl ? (
+                            <Image
+                              src={photoUrl}
+                              alt={car.model}
+                              fill
+                              className="object-cover transition-transform group-hover:scale-105"
+                            />
+                          ) : (
+                            <div className="grid size-full place-items-center text-xs text-muted-foreground">
+                              No photo yet
+                            </div>
+                          )}
                           <div className="absolute top-2 right-2">
                             <Badge variant="secondary" className="shadow-sm">{car.plateNumber}</Badge>
                           </div>
@@ -201,7 +211,8 @@ export default async function OwnerDetailPage({
                         </CardContent>
                       </Card>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </TabsContent>

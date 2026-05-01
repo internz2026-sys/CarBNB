@@ -38,6 +38,7 @@ export default async function HostLayout({
               { label: "Dashboard", href: "/host/dashboard" },
               { label: "My cars", href: "/host/cars" },
               { label: "My bookings", href: "/host/bookings" },
+              { label: "Profile", href: "/host/profile" },
             ]}
             roleLabel="Host"
           />

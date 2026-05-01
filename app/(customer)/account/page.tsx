@@ -88,7 +88,10 @@ export default async function CustomerAccountPage() {
             </Link>
             <UserMenu
               fullName={customer.fullName}
-              links={[{ label: "My bookings", href: "/account" }]}
+              links={[
+                { label: "My bookings", href: "/account" },
+                { label: "Favorites", href: "/account/favorites" },
+              ]}
               roleLabel="Customer"
             />
           </div>

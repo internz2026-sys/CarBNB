@@ -31,7 +31,8 @@ model Owner {
   licenseDocumentUrl String?
   carsCount          Int      @default(0)
   totalEarnings      Float    @default(0)
-  
+  bio                String?  // public-profile bio, max 500 chars (validated in Zod)
+
   cars          CarListing[]
   bookings      Booking[]
   ownerPayouts  OwnerPayout[]
@@ -70,6 +71,7 @@ model CarListing {
   availabilityRules   CarAvailabilityRule[]
   exceptions          CarAvailabilityException[]
   reviews             Review[]
+  favorites           Favorite[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -85,6 +87,7 @@ model Customer {
 
   bookings      Booking[]
   reviews       Review[]
+  favorites     Favorite[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -240,6 +243,23 @@ model Review {
 
   @@index([listingId, createdAt(sort: Desc)])
   @@index([customerId])
+}
+
+// Customer favorites — Tier 11. Login-required save. Unique per
+// (customer, listing) pair so the toggle is idempotent at the DB layer.
+model Favorite {
+  id         String   @id @default(cuid())
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  listingId  String
+  listing    CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, listingId])
+  @@index([customerId, createdAt(sort: Desc)])
 }
 
 // Single-row settings table. Always queried/mutated by the literal id

@@ -3,8 +3,9 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import type { DateRange } from "react-day-picker";
-import { CalendarDays, Heart } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
+import { FavoriteButton } from "@/app/listings/favorite-button";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -38,6 +39,7 @@ export function BookingCTA({
   viewerKind,
   initialFromIso,
   initialUntilIso,
+  isFavorited,
 }: {
   commissionRate: number;
   dailyPrice: number;
@@ -47,13 +49,14 @@ export function BookingCTA({
   viewerKind: "guest" | "customer" | "other";
   initialFromIso?: string;
   initialUntilIso?: string;
+  isFavorited: boolean;
 }) {
   const listingBookable = listingStatus === ListingStatus.ACTIVE;
 
   // Guest or wrong-role viewer: show simplified CTA that redirects or explains.
   if (!listingBookable) {
     return (
-      <FixedBar>
+      <FixedBar isFavorited={isFavorited} listingId={listingId}>
         <div className="flex h-14 w-full items-center justify-center rounded-[1rem] bg-surface-container-highest px-6 text-sm font-semibold text-on-surface-variant">
           This listing is not currently available for booking.
         </div>
@@ -63,7 +66,7 @@ export function BookingCTA({
 
   if (viewerKind === "guest") {
     return (
-      <FixedBar>
+      <FixedBar isFavorited={isFavorited} listingId={listingId}>
         <Link
           className="flex h-14 w-full items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-6 font-headline text-base font-bold text-on-primary shadow-[0_12px_28px_rgb(0_82_204_/_0.2)] transition hover:opacity-95"
           href={`/login?redirectTo=${encodeURIComponent(`/listings/${listingId}`)}`}
@@ -77,7 +80,7 @@ export function BookingCTA({
 
   if (viewerKind === "other") {
     return (
-      <FixedBar>
+      <FixedBar isFavorited={isFavorited} listingId={listingId}>
         <div className="flex h-14 w-full items-center justify-center rounded-[1rem] bg-surface-container-highest px-6 text-xs font-semibold text-on-surface-variant sm:text-sm">
           This account isn&apos;t set up as a customer. Use a customer account to reserve.
         </div>
@@ -91,24 +94,31 @@ export function BookingCTA({
       dailyPrice={dailyPrice}
       initialFromIso={initialFromIso}
       initialUntilIso={initialUntilIso}
+      isFavorited={isFavorited}
       listingId={listingId}
       unavailableDates={unavailableDates}
     />
   );
 }
 
-function FixedBar({ children }: { children: React.ReactNode }) {
+function FixedBar({
+  children,
+  listingId,
+  isFavorited,
+}: {
+  children: React.ReactNode;
+  listingId: string;
+  isFavorited: boolean;
+}) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 bg-[rgb(255_255_255_/_0.8)] shadow-[0_-4px_24px_rgb(19_27_46_/_0.08)] backdrop-blur-xl">
       <div className="mx-auto flex max-w-5xl items-center gap-4 px-4 py-5 sm:px-6">
         <div className="flex-1">{children}</div>
-        <button
-          aria-label="Save listing"
-          className="grid size-14 place-items-center rounded-[1rem] bg-surface-container-highest text-primary transition hover:scale-[1.02]"
-          type="button"
-        >
-          <Heart className="size-5" />
-        </button>
+        <FavoriteButton
+          initialFavorited={isFavorited}
+          listingId={listingId}
+          variant="detail"
+        />
       </div>
     </div>
   );
@@ -121,6 +131,7 @@ function CustomerBookingDialog({
   unavailableDates,
   initialFromIso,
   initialUntilIso,
+  isFavorited,
 }: {
   commissionRate: number;
   dailyPrice: number;
@@ -128,6 +139,7 @@ function CustomerBookingDialog({
   unavailableDates: string[];
   initialFromIso?: string;
   initialUntilIso?: string;
+  isFavorited: boolean;
 }) {
   // Auto-open the dialog when the user arrives with both dates pre-set from
   // the listings hero search — the click-through implies they want to book.
@@ -167,7 +179,7 @@ function CustomerBookingDialog({
 
   return (
     <Dialog onOpenChange={setOpen} open={open}>
-      <FixedBar>
+      <FixedBar isFavorited={isFavorited} listingId={listingId}>
         <DialogTrigger
           className="flex h-14 w-full items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-6 font-headline text-base font-bold text-on-primary shadow-[0_12px_28px_rgb(0_82_204_/_0.2)] transition hover:opacity-95"
           type="button"

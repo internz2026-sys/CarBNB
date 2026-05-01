@@ -1,9 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Heart, Settings2, ShieldCheck, Star, Users, Zap } from "lucide-react";
+import { Settings2, ShieldCheck, Star, Users, Zap } from "lucide-react";
 import { OwnerStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { vehicleTypeLabel } from "@/lib/listing-taxonomy";
+import { FavoriteButton } from "./favorite-button";
 
 const peso = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -32,9 +33,17 @@ type ListingCardProps = {
   // form pre-fills with the search range.
   fromParam?: string;
   untilParam?: string;
+  // Whether the current viewer (if logged-in customer) has favorited this
+  // listing. False for guests / hosts / admins.
+  isFavorited?: boolean;
 };
 
-export function ListingCard({ listing, fromParam, untilParam }: ListingCardProps) {
+export function ListingCard({
+  listing,
+  fromParam,
+  untilParam,
+  isFavorited = false,
+}: ListingCardProps) {
   const primaryPhoto = listing.photos[0];
   const photoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
   const verified = listing.owner.status === OwnerStatus.VERIFIED;
@@ -73,13 +82,11 @@ export function ListingCard({ listing, fromParam, untilParam }: ListingCardProps
           </div>
         ) : null}
 
-        <div
-          aria-label="Save to favorites — coming soon"
-          className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-white/90 text-on-surface-variant opacity-90"
-          title="Save to favorites — coming soon"
-        >
-          <Heart className="size-4" />
-        </div>
+        <FavoriteButton
+          initialFavorited={isFavorited}
+          listingId={listing.id}
+          variant="card"
+        />
       </div>
 
       <div className="p-5">

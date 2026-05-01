@@ -4,9 +4,9 @@ import { createClient } from "@/utils/supabase/server";
 
 export type Viewer =
   | { kind: "guest" }
-  | { kind: "customer"; email: string; fullName: string }
+  | { kind: "customer"; id: string; email: string; fullName: string }
   | { kind: "admin"; email: string; fullName: string | null }
-  | { kind: "host"; email: string; fullName: string }
+  | { kind: "host"; id: string; email: string; fullName: string }
   | { kind: "authenticated-unknown"; email: string };
 
 // Resolve the current viewer's role by looking them up in the DB — auth
@@ -29,10 +29,20 @@ export async function getCurrentViewer(): Promise<Viewer> {
     return { kind: "admin", email: user.email, fullName: admin.name };
   }
   if (customer) {
-    return { kind: "customer", email: user.email, fullName: customer.fullName };
+    return {
+      kind: "customer",
+      id: customer.id,
+      email: user.email,
+      fullName: customer.fullName,
+    };
   }
   if (owner) {
-    return { kind: "host", email: user.email, fullName: owner.fullName };
+    return {
+      kind: "host",
+      id: owner.id,
+      email: user.email,
+      fullName: owner.fullName,
+    };
   }
   return { kind: "authenticated-unknown", email: user.email };
 }

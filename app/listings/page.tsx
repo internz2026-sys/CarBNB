@@ -136,6 +136,18 @@ export default async function PublicListingsPage({
     },
   });
 
+  // Tier 11: load the current customer's favorited listing ids so cards can
+  // render their heart in the correct initial state. No-op for guests / hosts
+  // / admins (favorites are customer-only).
+  const favoritedIds = new Set<string>();
+  if (viewer.kind === "customer") {
+    const favs = await db.favorite.findMany({
+      where: { customerId: viewer.id },
+      select: { listingId: true },
+    });
+    for (const f of favs) favoritedIds.add(f.listingId);
+  }
+
   let filteredListings = listings;
   let dateFilterApplied = false;
   if (from && until) {
@@ -225,7 +237,10 @@ export default async function PublicListingsPage({
             {viewer.kind === "customer" ? (
               <UserMenu
                 fullName={viewer.fullName}
-                links={[{ label: "My bookings", href: "/account" }]}
+                links={[
+                  { label: "My bookings", href: "/account" },
+                  { label: "Favorites", href: "/account/favorites" },
+                ]}
                 roleLabel="Customer"
               />
             ) : viewer.kind === "admin" ? (
@@ -241,6 +256,7 @@ export default async function PublicListingsPage({
                   { label: "Host dashboard", href: "/host/dashboard" },
                   { label: "My cars", href: "/host/cars" },
                   { label: "My bookings", href: "/host/bookings" },
+                  { label: "Profile", href: "/host/profile" },
                 ]}
                 roleLabel="Host"
               />
@@ -401,6 +417,7 @@ export default async function PublicListingsPage({
                 {filteredListings.map((listing) => (
                   <ListingCard
                     fromParam={from || undefined}
+                    isFavorited={favoritedIds.has(listing.id)}
                     key={listing.id}
                     listing={listing}
                     untilParam={until || undefined}
