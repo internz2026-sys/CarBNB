@@ -35,7 +35,8 @@ model Owner {
   cars          CarListing[]
   bookings      Booking[]
   ownerPayouts  OwnerPayout[]
-  
+  reviews       Review[]
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -62,10 +63,13 @@ model CarListing {
   status              String   @default("PENDING_APPROVAL") // ACTIVE, INACTIVE, MAINTENANCE, BOOKED, PENDING_APPROVAL
   availabilitySummary String?
   notes               String?
-  
+  avgRating           Float    @default(0)        // recomputed on every review insert (Tier 10)
+  reviewCount         Int      @default(0)        // recomputed on every review insert (Tier 10)
+
   bookings            Booking[]
   availabilityRules   CarAvailabilityRule[]
   exceptions          CarAvailabilityException[]
+  reviews             Review[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -78,8 +82,9 @@ model Customer {
   email         String   @unique
   address       String?
   totalBookings Int      @default(0)
-  
+
   bookings      Booking[]
+  reviews       Review[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -132,6 +137,7 @@ model Booking {
   rentalCompletedAt  DateTime?
 
   accountingEntries AccountingEntry[]
+  review            Review?
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -206,6 +212,34 @@ model ActivityLogEntry {
   description String
   type        String   // system, owner, car, booking
   timestamp   DateTime @default(now())
+}
+
+// Customer reviews — Tier 10. One per booking (enforced via unique on bookingId).
+// Customer-only at write time; aggregates (avgRating, reviewCount) are denormalized
+// onto CarListing and recomputed on every insert.
+model Review {
+  id         String   @id @default(cuid())
+
+  bookingId  String   @unique
+  booking    Booking  @relation(fields: [bookingId], references: [id])
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  listingId  String
+  listing    CarListing @relation(fields: [listingId], references: [id])
+
+  ownerId    String
+  owner      Owner    @relation(fields: [ownerId], references: [id])
+
+  rating     Int      // 1-5, validated in app
+  comment    String?  // up to 1000 chars (validated in Zod)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([listingId, createdAt(sort: Desc)])
+  @@index([customerId])
 }
 
 // Single-row settings table. Always queried/mutated by the literal id

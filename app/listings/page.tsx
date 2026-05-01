@@ -19,6 +19,7 @@ export const dynamic = "force-dynamic";
 const SORT_OPTIONS = [
   { slug: "price_asc", label: "Price: Low to High" },
   { slug: "price_desc", label: "Price: High to Low" },
+  { slug: "top_rated", label: "Top rated" },
   { slug: "newest", label: "Newest first" },
 ];
 
@@ -91,13 +92,21 @@ export default async function PublicListingsPage({
     if (maxPrice !== null) where.dailyPrice.lte = maxPrice;
   }
 
-  let orderBy: Prisma.CarListingOrderByWithRelationInput;
+  let orderBy:
+    | Prisma.CarListingOrderByWithRelationInput
+    | Prisma.CarListingOrderByWithRelationInput[];
   switch (sort) {
     case "price_desc":
       orderBy = { dailyPrice: "desc" };
       break;
     case "newest":
       orderBy = { createdAt: "desc" };
+      break;
+    case "top_rated":
+      // Listings without reviews land at the bottom (avgRating=0).
+      // reviewCount tiebreaks so a 5★ from one rater doesn't outrank a
+      // 4.9★ from many.
+      orderBy = [{ avgRating: "desc" }, { reviewCount: "desc" }];
       break;
     case "price_asc":
     default:

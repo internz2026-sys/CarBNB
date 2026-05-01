@@ -25,6 +25,7 @@ import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { vehicleFeatureLabel } from "@/lib/listing-taxonomy";
 import { BookingCTA } from "./booking-cta";
 import { PhotoGallery } from "./photo-gallery";
+import { ReviewsLoadMore } from "./reviews-load-more";
 
 export const dynamic = "force-dynamic";
 
@@ -130,6 +131,18 @@ export default async function ListingDetailPage({
   });
 
   const settings = await getPlatformSettings();
+
+  // Tier 10: load the first 5 reviews + an extra row to drive the
+  // hasMore flag for the load-more client component.
+  const REVIEWS_INITIAL = 5;
+  const initialReviewRows = await db.review.findMany({
+    where: { listingId: listing.id },
+    orderBy: { createdAt: "desc" },
+    take: REVIEWS_INITIAL + 1,
+    include: { customer: { select: { fullName: true } } },
+  });
+  const reviewsHasMore = initialReviewRows.length > REVIEWS_INITIAL;
+  const initialReviews = initialReviewRows.slice(0, REVIEWS_INITIAL);
 
   const primaryPhoto = listing.photos[0] ?? null;
   const primaryPhotoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
@@ -332,6 +345,76 @@ export default async function ListingDetailPage({
               </section>
             </ScrollReveal>
           ) : null}
+
+          <ScrollReveal delay={140}>
+            <section className="mb-8">
+              <div className="mb-4 flex items-baseline justify-between gap-3">
+                <h2 className="font-headline text-xl font-bold text-on-surface">Reviews</h2>
+                {listing.reviewCount > 0 ? (
+                  <div className="flex items-center gap-1 text-sm">
+                    <Star className="size-4 fill-amber-400 text-amber-400" />
+                    <span className="font-bold text-on-surface">
+                      {listing.avgRating.toFixed(1)}
+                    </span>
+                    <span className="text-on-surface-variant">
+                      · {listing.reviewCount} {listing.reviewCount === 1 ? "review" : "reviews"}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-on-surface-variant">No ratings yet</span>
+                )}
+              </div>
+
+              {initialReviews.length === 0 ? (
+                <p className="rounded-xl bg-surface-container p-6 text-center text-sm text-on-surface-variant">
+                  No reviews yet — be the first to review after your trip.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-4">
+                    {initialReviews.map((r) => (
+                      <article
+                        className="rounded-xl border border-border/50 bg-surface-container-lowest p-4"
+                        key={r.id}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <Star
+                                className={
+                                  r.rating >= n
+                                    ? "size-4 fill-amber-400 text-amber-400"
+                                    : "size-4 text-on-surface-variant"
+                                }
+                                key={n}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-sm font-semibold text-on-surface">
+                            {r.customer.fullName}
+                          </span>
+                          <span className="text-xs text-on-surface-variant">
+                            · {format(r.createdAt, "MMM d, yyyy")}
+                          </span>
+                        </div>
+                        {r.comment ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-on-surface-variant">
+                            {r.comment}
+                          </p>
+                        ) : null}
+                      </article>
+                    ))}
+                  </div>
+
+                  <ReviewsLoadMore
+                    initialHasMore={reviewsHasMore}
+                    initialSkip={initialReviews.length}
+                    listingId={listing.id}
+                  />
+                </>
+              )}
+            </section>
+          </ScrollReveal>
 
           <ScrollReveal delay={150}>
             <section className="mb-8 rounded-[1.5rem] bg-surface-container p-5 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
