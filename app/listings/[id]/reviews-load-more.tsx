@@ -26,25 +26,46 @@ export function ReviewsLoadMore({
 }) {
   const [extra, setExtra] = useState<Review[]>([]);
   const [hasMore, setHasMore] = useState(initialHasMore);
+  const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function loadMore() {
+    setError(null);
     startTransition(async () => {
-      const skip = initialSkip + extra.length;
-      const result = await loadMoreReviewsAction(listingId, skip);
-      setExtra((prev) => [...prev, ...result.reviews]);
-      setHasMore(result.hasMore);
+      try {
+        const skip = initialSkip + extra.length;
+        const result = await loadMoreReviewsAction(listingId, skip);
+        setExtra((prev) => [...prev, ...result.reviews]);
+        setHasMore(result.hasMore);
+      } catch {
+        setError("Couldn't load more reviews. Check your connection and try again.");
+      }
     });
   }
 
-  if (!hasMore && extra.length === 0) return null;
+  if (!hasMore && extra.length === 0 && !error) return null;
 
   return (
     <div className="mt-4 space-y-4">
       {extra.map((r) => (
         <ReviewItem key={r.id} review={r} />
       ))}
-      {hasMore ? (
+
+      {error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p>{error}</p>
+          <Button
+            className="mt-2"
+            disabled={pending}
+            onClick={loadMore}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {pending ? "Retrying..." : "Try again"}
+          </Button>
+        </div>
+      ) : hasMore ? (
         <Button
           className="w-full"
           disabled={pending}

@@ -187,7 +187,7 @@ export default async function LandingPage() {
           <nav className="hidden items-center gap-8 md:flex">
             <Link
               className="text-sm font-semibold text-primary transition hover:text-primary-container"
-              href="#featured-listings"
+              href="/listings"
             >
               Browse Cars
             </Link>
@@ -278,7 +278,7 @@ export default async function LandingPage() {
                 <div className="mt-10 flex flex-col gap-4 sm:flex-row">
                   <Link
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-8 py-4 text-lg font-bold text-on-primary shadow-[0_18px_40px_rgb(0_82_204_/_0.22)] transition hover:opacity-95"
-                    href="#featured-listings"
+                    href="/listings"
                   >
                     Browse Cars
                     <ArrowRight className="size-5" />
@@ -495,9 +495,9 @@ export default async function LandingPage() {
                 </div>
                 <Link
                   className="inline-flex items-center gap-2 text-sm font-bold text-primary transition hover:text-primary-container"
-                  href={`/listings/${featuredCars[0].id}`}
+                  href="/listings"
                 >
-                  View featured car
+                  Browse all cars
                   <ArrowRight className="size-4" />
                 </Link>
               </div>

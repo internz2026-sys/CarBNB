@@ -6,15 +6,26 @@ import { createClient } from "@/utils/supabase/server";
 
 export type FavoriteToggleResult =
   | { ok: true; favorited: boolean }
-  | { ok: false; error: string; needsLogin?: boolean };
+  | { ok: false; error: string; needsLogin?: boolean; notACustomer?: boolean };
 
-async function getCustomerOrNull() {
+// Resolves to one of three states so the client can disambiguate:
+// - guest (not authed) → needs to log in
+// - authed but no Customer row → admin or host trying to favorite; no login
+//   prompt would help, so we surface a different message
+// - authed customer → ready to toggle
+async function resolveCustomerAuth(): Promise<
+  | { kind: "guest" }
+  | { kind: "not-customer" }
+  | { kind: "customer"; customer: Awaited<ReturnType<typeof db.customer.findUnique>> }
+> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user?.email) return null;
-  return db.customer.findUnique({ where: { email: user.email } });
+  if (!user?.email) return { kind: "guest" };
+  const customer = await db.customer.findUnique({ where: { email: user.email } });
+  if (!customer) return { kind: "not-customer" };
+  return { kind: "customer", customer };
 }
 
 // Idempotent toggle. Inserts the (customer, listing) pair if missing,
@@ -27,14 +38,22 @@ export async function toggleFavoriteAction(
     return { ok: false, error: "Missing listing id." };
   }
 
-  const customer = await getCustomerOrNull();
-  if (!customer) {
+  const auth = await resolveCustomerAuth();
+  if (auth.kind === "guest") {
     return {
       ok: false,
       error: "Log in as a customer to save listings.",
       needsLogin: true,
     };
   }
+  if (auth.kind === "not-customer") {
+    return {
+      ok: false,
+      error: "Only customer accounts can save favorites.",
+      notACustomer: true,
+    };
+  }
+  const customer = auth.customer!;
 
   const listing = await db.carListing.findUnique({
     where: { id: listingId },

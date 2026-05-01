@@ -43,6 +43,7 @@ export default async function DashboardPage() {
     pendingOwnerQueue,
     pendingListingQueue,
     settings,
+    recentActivity,
   ] = await Promise.all([
     db.owner.count(),
     db.owner.count({ where: { status: OwnerStatus.VERIFIED } }),
@@ -93,6 +94,17 @@ export default async function DashboardPage() {
       },
     }),
     getPlatformSettings(),
+    db.activityLogEntry.findMany({
+      orderBy: { timestamp: "desc" },
+      take: 10,
+      select: {
+        id: true,
+        action: true,
+        description: true,
+        type: true,
+        timestamp: true,
+      },
+    }),
   ]);
 
   const totalRevenue = revenueAgg._sum.totalAmount ?? 0;
@@ -373,6 +385,45 @@ export default async function DashboardPage() {
             </div>
           </section>
         </div>
+
+        <section className="rounded-2xl border border-border/60 bg-surface-container-lowest p-6 shadow-sm">
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h2 className="font-headline text-lg font-bold text-on-surface">Recent activity</h2>
+            <span className="text-xs text-on-surface-variant">
+              Last {recentActivity.length} {recentActivity.length === 1 ? "event" : "events"}
+            </span>
+          </div>
+          {recentActivity.length === 0 ? (
+            <p className="rounded-md bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+              No activity yet.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {recentActivity.map((entry) => (
+                <li
+                  className="flex items-start gap-3 rounded-md border border-border/40 bg-surface-container-low px-3 py-2 text-sm"
+                  key={entry.id}
+                >
+                  <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+                    {entry.type}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-mono uppercase tracking-wide text-on-surface-variant">
+                      {entry.action}
+                    </p>
+                    <p className="break-words text-sm text-on-surface">{entry.description}</p>
+                  </div>
+                  <time
+                    className="shrink-0 text-xs text-on-surface-variant"
+                    dateTime={entry.timestamp.toISOString()}
+                  >
+                    {format(entry.timestamp, "MMM d, h:mm a")}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     </section>
   );
