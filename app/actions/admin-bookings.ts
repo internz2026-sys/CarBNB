@@ -11,6 +11,8 @@ import { calculateBookingAmount } from "@/lib/platform-settings";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { generateBookingReference } from "@/lib/booking-ref";
 import { CANCELLATION_REASONS, CANCELLATION_SLUGS } from "@/lib/cancellation-reasons";
+import { writeBookingSystemMessage } from "@/lib/booking-chat-server";
+import { format } from "date-fns";
 
 export type AdminBookingActionState =
   | {
@@ -44,6 +46,7 @@ async function transitionStatus(
   allowedFrom: BookingStatus[],
   verb: string,
   extraData: Record<string, unknown> = {},
+  systemMessage?: string,
 ): Promise<AdminBookingActionState> {
   const admin = await requireAdmin();
 
@@ -63,6 +66,10 @@ async function transitionStatus(
     data: { status: targetStatus, ...extraData },
   });
 
+  if (systemMessage) {
+    await writeBookingSystemMessage(id, systemMessage);
+  }
+
   await db.activityLogEntry.create({
     data: {
       action: `BOOKING_${verb.toUpperCase()}`,
@@ -75,6 +82,7 @@ async function transitionStatus(
   revalidatePath(`/bookings/${id}`);
   revalidatePath("/account");
   revalidatePath(`/account/bookings/${id}`);
+  revalidatePath(`/host/bookings/${id}`);
   return null;
 }
 
@@ -87,6 +95,8 @@ export async function confirmBookingAction(
     BookingStatus.CONFIRMED,
     [BookingStatus.PENDING],
     "confirm",
+    {},
+    "Booking confirmed by admin. Use this chat to coordinate pickup, drop-off, and trip needs.",
   );
 }
 
@@ -94,12 +104,14 @@ export async function startRentalAction(
   _prev: AdminBookingActionState,
   formData: FormData,
 ): Promise<AdminBookingActionState> {
+  const startedAt = new Date();
   return transitionStatus(
     formData,
     BookingStatus.ONGOING,
     [BookingStatus.CONFIRMED],
     "start",
-    { rentalStartedAt: new Date() },
+    { rentalStartedAt: startedAt },
+    `Trip started by admin · ${format(startedAt, "MMM d, h:mm a")}`,
   );
 }
 
@@ -107,12 +119,14 @@ export async function completeRentalAction(
   _prev: AdminBookingActionState,
   formData: FormData,
 ): Promise<AdminBookingActionState> {
+  const completedAt = new Date();
   return transitionStatus(
     formData,
     BookingStatus.COMPLETED,
     [BookingStatus.ONGOING],
     "complete",
-    { rentalCompletedAt: new Date() },
+    { rentalCompletedAt: completedAt },
+    `Trip completed by admin · ${format(completedAt, "MMM d, h:mm a")}. Chat closes in 48h.`,
   );
 }
 
@@ -177,6 +191,17 @@ async function cancelOrReject(
   const reasonLabel =
     CANCELLATION_REASONS.find((r) => r.slug === parsed.data.reason)?.label ??
     parsed.data.reason;
+
+  // Tier 14: only write the system message if the booking previously had
+  // chat (i.e. it was past PENDING). PENDING bookings never opened a
+  // chat thread, so a system message there has no UI surface.
+  if (booking.status !== BookingStatus.PENDING) {
+    await writeBookingSystemMessage(
+      id,
+      `Booking ${verb === "cancel" ? "cancelled" : "rejected"} by admin · reason: ${reasonLabel}${parsed.data.note ? ` — ${parsed.data.note}` : ""}. Chat is now closed.`,
+    );
+  }
+
   await db.activityLogEntry.create({
     data: {
       action: verb === "cancel" ? "BOOKING_CANCELLED_BY_ADMIN" : "BOOKING_REJECTED",
@@ -189,6 +214,7 @@ async function cancelOrReject(
   revalidatePath(`/bookings/${id}`);
   revalidatePath("/account");
   revalidatePath(`/account/bookings/${id}`);
+  revalidatePath(`/host/bookings/${id}`);
   return null;
 }
 
@@ -273,6 +299,11 @@ export async function markBookingPaidAction(
     },
   });
 
+  await writeBookingSystemMessage(
+    id,
+    `Payment received (cash) · marked paid by admin${parsed.data.notes ? ` — ${parsed.data.notes}` : ""}`,
+  );
+
   await db.activityLogEntry.create({
     data: {
       action: "BOOKING_MARKED_PAID",
@@ -285,6 +316,7 @@ export async function markBookingPaidAction(
   revalidatePath(`/bookings/${id}`);
   revalidatePath("/account");
   revalidatePath(`/account/bookings/${id}`);
+  revalidatePath(`/host/bookings/${id}`);
   return null;
 }
 
@@ -398,6 +430,13 @@ export async function createAdminBookingAction(
     where: { id: customer.id },
     data: { totalBookings: { increment: 1 } },
   });
+
+  // Tier 14: admin-created bookings start at CONFIRMED so chat opens
+  // immediately. Seed the welcome system message.
+  await writeBookingSystemMessage(
+    booking.id,
+    "Booking created and confirmed by admin. Use this chat to coordinate pickup, drop-off, and trip needs.",
+  );
 
   await db.activityLogEntry.create({
     data: {

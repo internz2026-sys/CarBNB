@@ -141,6 +141,7 @@ model Booking {
 
   accountingEntries AccountingEntry[]
   review            Review?
+  messages          Message[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -243,6 +244,28 @@ model Review {
 
   @@index([listingId, createdAt(sort: Desc)])
   @@index([customerId])
+}
+
+// Booking chat messages — Tier 14. Per-booking lifecycle-bounded chat.
+// `kind = "user"` rows have senderRole "customer" or "host" + senderId.
+// `kind = "system"` rows are auto-injected on status transitions and have
+// senderRole "system" + senderId null. Cascade-deletes with Booking so a
+// booking removal doesn't leave orphan messages.
+model Message {
+  id          String   @id @default(cuid())
+
+  bookingId   String
+  booking     Booking  @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  kind        String   // "user" | "system"
+  senderRole  String   // "customer" | "host" | "system"
+  senderId    String?  // Customer.id or Owner.id; null for system messages
+
+  body        String   // up to 1000 chars (validated in Zod)
+
+  createdAt   DateTime @default(now())
+
+  @@index([bookingId, createdAt])
 }
 
 // Customer favorites — Tier 11. Login-required save. Unique per

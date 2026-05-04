@@ -6,6 +6,8 @@ import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, OwnerStatus } from "@/types";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
+import { writeBookingSystemMessage } from "@/lib/booking-chat-server";
+import { format } from "date-fns";
 
 export type HostBookingActionState =
   | {
@@ -73,6 +75,14 @@ export async function hostConfirmBookingAction(
     data: { status: BookingStatus.CONFIRMED },
   });
 
+  // Tier 14: a CONFIRMED booking opens the chat. Write the welcome
+  // system message so both parties land into a populated thread, not a
+  // blank one.
+  await writeBookingSystemMessage(
+    bookingId,
+    "Booking confirmed by host. Use this chat to coordinate pickup, drop-off, and trip needs.",
+  );
+
   await db.activityLogEntry.create({
     data: {
       action: "HOST_BOOKING_CONFIRMED",
@@ -116,13 +126,19 @@ export async function hostStartRentalAction(
     };
   }
 
+  const startedAt = new Date();
   await db.booking.update({
     where: { id: bookingId },
     data: {
       status: BookingStatus.ONGOING,
-      rentalStartedAt: new Date(),
+      rentalStartedAt: startedAt,
     },
   });
+
+  await writeBookingSystemMessage(
+    bookingId,
+    `Trip started by host · ${format(startedAt, "MMM d, h:mm a")}`,
+  );
 
   await db.activityLogEntry.create({
     data: {
@@ -160,13 +176,19 @@ export async function hostCompleteRentalAction(
     };
   }
 
+  const completedAt = new Date();
   await db.booking.update({
     where: { id: bookingId },
     data: {
       status: BookingStatus.COMPLETED,
-      rentalCompletedAt: new Date(),
+      rentalCompletedAt: completedAt,
     },
   });
+
+  await writeBookingSystemMessage(
+    bookingId,
+    `Trip completed by host · ${format(completedAt, "MMM d, h:mm a")}. Chat closes in 48h.`,
+  );
 
   await db.activityLogEntry.create({
     data: {
