@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { format } from "date-fns";
 import { Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,8 @@ export function ChatConversation({
   viewerId,
   chatState,
 }: ChatConversationProps) {
-  const { messages, appendLocal } = useChatMessages(bookingId, initialMessages);
+  const { messages, appendOptimistic, confirmOptimistic, rollbackOptimistic } =
+    useChatMessages(bookingId, initialMessages);
 
   // Auto-scroll the message list to the bottom on initial mount + whenever
   // a new message arrives. Standard chat behavior.
@@ -102,13 +103,15 @@ export function ChatConversation({
 
       {canWrite ? (
         <ChatInput
-          appendLocal={appendLocal}
+          appendOptimistic={appendOptimistic}
           bookingId={bookingId}
+          confirmOptimistic={confirmOptimistic}
           gracePeriodEndIso={
             chatState.kind === "active" ? chatState.gracePeriodEndIso : null
           }
-          viewerRole={viewerRole}
+          rollbackOptimistic={rollbackOptimistic}
           viewerId={viewerId!}
+          viewerRole={viewerRole}
         />
       ) : (
         <ClosedBanner state={chatState} viewerRole={viewerRole} />
@@ -188,13 +191,17 @@ function MessageRow({
 
 function ChatInput({
   bookingId,
-  appendLocal,
+  appendOptimistic,
+  confirmOptimistic,
+  rollbackOptimistic,
   viewerRole,
   viewerId,
   gracePeriodEndIso,
 }: {
   bookingId: string;
-  appendLocal: (m: SerializedMessage) => void;
+  appendOptimistic: (m: SerializedMessage) => void;
+  confirmOptimistic: (tempId: string, real: SerializedMessage) => void;
+  rollbackOptimistic: (tempId: string) => void;
   viewerRole: "customer" | "host";
   viewerId: string;
   gracePeriodEndIso: string | null;
@@ -213,9 +220,11 @@ function ChatInput({
     }
     setError(null);
 
-    // Optimistic insert: render the sender's own message immediately. If the
-    // server insert succeeds, swap the temporary id for the server-issued
-    // one. If it fails, remove the optimistic row and surface the error.
+    // Optimistic insert: render the sender's own message immediately with a
+    // temporary id. The polling cursor is NOT advanced here — it must always
+    // point at a real DB id (otherwise the next poll's cursor lookup misses
+    // and refetches everything). On server success, swap the temp row for
+    // the real one. On failure, drop the temp row and surface the error.
     const tempId = `optimistic-${Date.now()}`;
     const optimistic: SerializedMessage = {
       id: tempId,
@@ -226,23 +235,17 @@ function ChatInput({
       body: trimmed,
       createdAt: new Date().toISOString(),
     };
-    appendLocal(optimistic);
+    appendOptimistic(optimistic);
     setBody("");
 
     startTransition(async () => {
       const result = await sendMessageAction(bookingId, trimmed);
       if (!result.ok) {
+        rollbackOptimistic(tempId);
         setError(result.error);
-        // We can't easily surgically remove the optimistic row from the
-        // hook's state from out here; we just leave it visible and rely
-        // on the user re-typing if they want to retry. Lightweight approach
-        // — refining this is a polish-pass item.
         return;
       }
-      // Server succeeded — swap the temp id for the real one so the polling
-      // hook doesn't double-render. (Hook already dedupes on id, so a
-      // matching real id from the next poll won't append again.)
-      appendLocal(result.message);
+      confirmOptimistic(tempId, result.message);
     });
   }
 

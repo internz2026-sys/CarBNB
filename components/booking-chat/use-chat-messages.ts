@@ -13,6 +13,13 @@ const POLL_INTERVAL_MS = 5000;
 //
 // Pauses polling when the tab is hidden (Page Visibility API). Resumes
 // on focus and immediately fetches anything missed during the blur.
+//
+// Optimistic-send flow uses `appendOptimistic` → `confirmOptimistic` (or
+// `rollbackOptimistic` on error). The cursor (lastIdRef) deliberately is
+// NOT advanced for an optimistic row — it must always point at a real DB
+// id so the polling tick's cursor lookup keeps working. The cursor only
+// advances when we have a real server-issued id (in `confirmOptimistic`
+// or in the polling tick itself).
 export function useChatMessages(
   bookingId: string,
   initialMessages: SerializedMessage[],
@@ -22,17 +29,36 @@ export function useChatMessages(
     initialMessages.length > 0 ? initialMessages[initialMessages.length - 1].id : null,
   );
 
-  // Append a single message immediately (used for optimistic sender updates).
-  // The ref also advances so the next poll skips this row instead of
-  // duplicating it back into the list.
-  const appendLocal = useCallback((msg: SerializedMessage) => {
+  // Optimistic insert with a temporary id. Does NOT touch lastIdRef — the
+  // polling cursor must always point at a real DB id.
+  const appendOptimistic = useCallback((msg: SerializedMessage) => {
     setMessages((prev) => {
-      // Defensive against double-appends (e.g. server echoes the row before
-      // we get the optimistic response — unlikely but cheap to guard).
       if (prev.some((m) => m.id === msg.id)) return prev;
       return [...prev, msg];
     });
-    lastIdRef.current = msg.id;
+  }, []);
+
+  // Server send succeeded. Swap the optimistic row for the real one, then
+  // advance lastIdRef. Handle the race where a poll tick already pulled the
+  // real row in (real-X already in the list): in that case just remove the
+  // temp row instead of duplicating real-X.
+  const confirmOptimistic = useCallback(
+    (tempId: string, real: SerializedMessage) => {
+      setMessages((prev) => {
+        const realAlreadyPresent = prev.some((m) => m.id === real.id);
+        if (realAlreadyPresent) {
+          return prev.filter((m) => m.id !== tempId);
+        }
+        return prev.map((m) => (m.id === tempId ? real : m));
+      });
+      lastIdRef.current = real.id;
+    },
+    [],
+  );
+
+  // Server send failed. Drop the optimistic row. Don't touch lastIdRef.
+  const rollbackOptimistic = useCallback((tempId: string) => {
+    setMessages((prev) => prev.filter((m) => m.id !== tempId));
   }, []);
 
   useEffect(() => {
@@ -94,5 +120,5 @@ export function useChatMessages(
     };
   }, [bookingId]);
 
-  return { messages, appendLocal };
+  return { messages, appendOptimistic, confirmOptimistic, rollbackOptimistic };
 }
