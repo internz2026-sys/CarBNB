@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { format } from "date-fns";
-import { Building2, ChevronDown, X } from "lucide-react";
+import { Building2, ChevronDown, MapPin, X } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -33,6 +33,7 @@ type FleetOption = {
   id: string;
   displayName: string;
   bio: string | null;
+  serviceArea: string | null;
 };
 
 type ExistingLink = {
@@ -287,6 +288,12 @@ function RequestLinkCard({
                   <SelectItem key={f.id} value={f.id}>
                     <div className="flex flex-col">
                       <span className="font-medium">{f.displayName}</span>
+                      {f.serviceArea ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                          <MapPin className="size-3" />
+                          {f.serviceArea}
+                        </span>
+                      ) : null}
                       {f.bio ? (
                         <span className="text-xs text-muted-foreground line-clamp-1">{f.bio}</span>
                       ) : null}
@@ -299,11 +306,19 @@ function RequestLinkCard({
               <p className="text-xs text-red-600">{fieldErrors.fleetId[0]}</p>
             ) : null}
             {selectedFleet ? (
-              <p className="text-xs text-on-surface-variant">
-                <Link className="text-primary hover:underline" href={`/hosts/${selectedFleet.id}`} target="_blank">
-                  View {selectedFleet.displayName} profile →
-                </Link>
-              </p>
+              <div className="space-y-1">
+                {selectedFleet.serviceArea ? (
+                  <p className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                    <MapPin className="size-3" />
+                    Service area: {selectedFleet.serviceArea}
+                  </p>
+                ) : null}
+                <p className="text-xs text-on-surface-variant">
+                  <Link className="text-primary hover:underline" href={`/hosts/${selectedFleet.id}`} target="_blank">
+                    View {selectedFleet.displayName} profile →
+                  </Link>
+                </p>
+              </div>
             ) : null}
           </div>
 

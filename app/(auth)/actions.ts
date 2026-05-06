@@ -111,6 +111,7 @@ export async function signupAction(
   const kind = kindRaw === "FLEET" ? "FLEET" : "INDIVIDUAL";
   const companyName = String(formData.get("companyName") ?? "").trim();
   const businessRegNumber = String(formData.get("businessRegNumber") ?? "").trim();
+  const serviceArea = String(formData.get("serviceArea") ?? "").trim();
 
   if (role !== "host" && role !== "customer") {
     return { error: "Invalid signup role." };
@@ -125,6 +126,12 @@ export async function signupAction(
     if (!companyName || !businessRegNumber) {
       return {
         error: "Fleet operators must provide a company name and business registration number.",
+        email,
+      };
+    }
+    if (!serviceArea) {
+      return {
+        error: "Fleet operators must provide a service area so independent owners can find you.",
         email,
       };
     }
@@ -160,6 +167,7 @@ export async function signupAction(
         kind,
         companyName: kind === "FLEET" ? companyName : null,
         businessRegNumber: kind === "FLEET" ? businessRegNumber : null,
+        serviceArea: kind === "FLEET" ? serviceArea : null,
       },
     });
     redirect(

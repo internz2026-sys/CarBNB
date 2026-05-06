@@ -80,7 +80,13 @@ export default async function HostEditListingPage({
         }),
         db.owner.findMany({
           where: { kind: "FLEET", status: OwnerStatus.VERIFIED },
-          select: { id: true, companyName: true, fullName: true, bio: true },
+          select: {
+            id: true,
+            companyName: true,
+            fullName: true,
+            bio: true,
+            serviceArea: true,
+          },
           orderBy: { createdAt: "asc" },
         }),
       ])
@@ -179,6 +185,7 @@ export default async function HostEditListingPage({
             id: f.id,
             displayName: f.companyName ?? f.fullName,
             bio: f.bio,
+            serviceArea: f.serviceArea,
           }))}
           link={
             fleetLink && (fleetLink.status === "PENDING" || fleetLink.status === "ACTIVE")

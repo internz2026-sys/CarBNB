@@ -41,6 +41,10 @@ model Owner {
   kind               String   @default("INDIVIDUAL") // INDIVIDUAL | FLEET
   companyName        String?  // only meaningful when kind=FLEET
   businessRegNumber  String?  // only meaningful when kind=FLEET
+  serviceArea        String?  // public service-area / city of operations (FLEET-only).
+                              // Different concern from Owner.address (which is private,
+                              // used for ID verification). Helps independent owners
+                              // pick a fleet near them when requesting management.
 
   cars            CarListing[]
   bookings        Booking[]

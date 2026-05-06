@@ -135,6 +135,20 @@ function HostFormForKind({
               required
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-serviceArea">Service Area</Label>
+            <Input
+              id="signup-serviceArea"
+              name="serviceArea"
+              placeholder="e.g. Makati · BGC · Metro Manila"
+              required
+            />
+            <p className="text-xs text-on-surface-variant">
+              Public — independent owners use this to pick a fleet near their car.
+              Free-text city / area description. You can update this later from your
+              profile.
+            </p>
+          </div>
         </>
       ) : null}
 

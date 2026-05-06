@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
-import { Building2, ShieldCheck } from "lucide-react";
+import { Building2, MapPin, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { ListingStatus, OwnerStatus } from "@/types";
@@ -38,6 +38,7 @@ export default async function FleetsDirectoryPage() {
       companyName: true,
       fullName: true,
       bio: true,
+      serviceArea: true,
       createdAt: true,
       _count: {
         select: {
@@ -158,7 +159,13 @@ export default async function FleetsDirectoryPage() {
                     <h3 className="mt-0.5 truncate font-headline text-lg font-bold text-on-surface group-hover:text-primary">
                       {displayName}
                     </h3>
-                    <p className="mt-0.5 text-xs text-on-surface-variant">
+                    {fleet.serviceArea ? (
+                      <p className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                        <MapPin className="size-3" />
+                        {fleet.serviceArea}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-on-surface-variant">
                       Member since {format(fleet.createdAt, "MMMM yyyy")} ·{" "}
                       {carCount} {carCount === 1 ? "car" : "cars"} managed
                     </p>

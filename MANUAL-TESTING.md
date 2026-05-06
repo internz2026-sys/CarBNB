@@ -1542,11 +1542,12 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
 
 **Pick Fleet — extended form**
 10. Open `/signup` again. Click **Registered Car Rental Operator**.
-11. The card now shows a tertiary-color "Registered Car Rental Operator" pill + the form, with TWO additional required fields at the top: **Company Name** and **Business Registration Number**.
-12. The "Full Name" label changes to **"Contact Person — Full Name"** to disambiguate the company from the human contact.
-13. Fill in: `Acme Rentals Inc.`, `DTI-ABC-12345`, `Maria Santos`, `acme-fleet@test.com`, `Test1234!`. Click **Create Fleet Account**.
-14. Server creates the Owner row with `kind=FLEET`, `companyName="Acme Rentals Inc."`, `businessRegNumber="DTI-ABC-12345"`, `status=PENDING`. Verify in Prisma Studio.
-15. Redirected to `/login?signedUp=fleet`.
+11. The card now shows a tertiary-color "Registered Car Rental Operator" pill + the form, with THREE additional required fields at the top: **Company Name**, **Business Registration Number**, and **Service Area**.
+12. The Service Area input has placeholder *"e.g. Makati · BGC · Metro Manila"* and a helper line beneath: *"Public — independent owners use this to pick a fleet near their car..."*
+13. The "Full Name" label changes to **"Contact Person — Full Name"** to disambiguate the company from the human contact.
+14. Fill in: `Acme Rentals Inc.`, `DTI-ABC-12345`, `Makati · BGC`, `Maria Santos`, `acme-fleet@test.com`, `Test1234!`. Click **Create Fleet Account**.
+15. Server creates the Owner row with `kind=FLEET`, `companyName="Acme Rentals Inc."`, `businessRegNumber="DTI-ABC-12345"`, `serviceArea="Makati · BGC"`, `status=PENDING`. Verify in Prisma Studio.
+16. Redirected to `/login?signedUp=fleet`.
 
 **Switch back from kind selection**
 16. Open `/signup`. Click Independent. Click "Change account type" link at the top. Form clears, two-button screen returns.
@@ -1558,9 +1559,10 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
 **Validation: fleet missing required fields**
 19. Pick Fleet. Submit with empty Company Name. Server should reject with: *"Fleet operators must provide a company name and business registration number."*
 20. Same for empty Business Registration Number.
+21. Fill Company Name + Business Reg Number, but leave Service Area empty. Server rejects with: *"Fleet operators must provide a service area so independent owners can find you."*
 
 **Email collision check (regression)**
-21. Try to sign up an Individual with the same email as the fleet account from step 13. Server rejects: *"An account with this email already exists."* (existing collision guard, unchanged).
+22. Try to sign up an Individual with the same email as the fleet account from step 14. Server rejects: *"An account with this email already exists."* (existing collision guard, unchanged).
 
 ### T15-B — Admin verifies the new fleet account
 
@@ -1587,7 +1589,7 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
 **Directory page renders**
 2. Navigate to `/fleets`. Header + page render.
 3. Heading: **"Fleet operators"**. Subtitle explains the program.
-4. Below: a grid of fleet operator cards. Each card shows: avatar with initials, "VERIFIED OPERATOR" eyebrow, company name, "Member since [Month Year]", car count, optional bio (only after they fill it on `/host/profile`).
+4. Below: a grid of fleet operator cards. Each card shows: avatar with initials, "VERIFIED OPERATOR" eyebrow, company name, **service area line** with a MapPin icon in primary color (e.g. *"📍 Makati · BGC"* — only renders when `serviceArea` is set), "Member since [Month Year]", car count, optional bio (only after they fill it on `/host/profile`).
 5. Cards are linked — clicking navigates to `/hosts/[fleet-id]`.
 
 **Empty state**
@@ -1603,10 +1605,11 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
 11. Navigate to `/hosts/[fleet-id]`.
 12. Header eyebrow: **"Verified Fleet Operator"**.
 13. Header name = `companyName` (e.g. `Acme Rentals Inc.`), NOT the contact person's full name.
-14. Member-since line ends with **"· Operator account"**.
-15. If the fleet has a bio set (`/host/profile`), it renders under an **"About this company"** heading instead of the plain bio block individuals get.
-16. Listings grid heading: **"Cars under management (N)"** (different from individual's "Listings").
-17. Initially, before any cars are linked, this fleet's grid shows their own owned cars (likely 0 if you haven't created any). Empty state copy uses `companyName` instead of first name.
+14. Below the company name (above member-since): a **service area line** in primary color with a small MapPin icon (e.g. *"📍 Makati · BGC"*). Renders only when `serviceArea` is set.
+15. Member-since line ends with **"· Operator account"**.
+16. If the fleet has a bio set (`/host/profile`), it renders under an **"About this company"** heading instead of the plain bio block individuals get.
+17. Listings grid heading: **"Cars under management (N)"** (different from individual's "Listings").
+18. Initially, before any cars are linked, this fleet's grid shows their own owned cars (likely 0 if you haven't created any). Empty state copy uses `companyName` instead of first name.
 
 **Browser tab title**
 18. Verified individual: tab title `[Full Name] | DriveXP Host`.
@@ -1628,9 +1631,11 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
    - A **Cancel** button to flip back to the initial state
 
 **Pick a fleet + submit**
-6. Pick a fleet from the dropdown. Optionally fill in the fee (e.g. `15`). Click **Send request**.
-7. The card refreshes to show the new state: **"Awaiting response from [Fleet Name]"** with the proposed fee shown and a **Cancel request** button.
-8. Verify in Prisma Studio: a new `FleetCarLink` row exists with `status = PENDING`, the right `listingId`, `fleetId`, `managementFeePercent`, and `requestedAt = now`.
+6. Open the dropdown. Each option shows the company name on the first line and (if `serviceArea` is set) a **service area line** with a primary-color MapPin icon underneath the name (e.g. *"📍 Makati · BGC"*). Bio (if any) renders below that.
+7. Pick a fleet from the dropdown. Below the dropdown, two helper rows appear: a **service area row** (primary color with MapPin: *"Service area: Makati · BGC"*) and a **"View [Fleet] profile →"** link to the public profile.
+8. Optionally fill in the fee (e.g. `15`). Click **Send request**.
+9. The card refreshes to show the new state: **"Awaiting response from [Fleet Name]"** with the proposed fee shown and a **Cancel request** button.
+10. Verify in Prisma Studio: a new `FleetCarLink` row exists with `status = PENDING`, the right `listingId`, `fleetId`, `managementFeePercent`, and `requestedAt = now`.
 
 **Activity log entry**
 9. Log in as admin → `/dashboard`. Recent activity feed has a new `FLEET_LINK_REQUESTED` row: *"Owner [email] requested [Fleet Name] to manage [Brand Model] (plate)"*.

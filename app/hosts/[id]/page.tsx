@@ -3,7 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
-import { ShieldCheck } from "lucide-react";
+import { MapPin, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { ListingStatus, OwnerStatus } from "@/types";
@@ -184,6 +184,12 @@ export default async function HostProfilePage({ params }: HostProfilePageProps) 
               <h1 className="mt-1 font-headline text-2xl font-extrabold tracking-tight text-on-surface sm:text-3xl">
                 {displayName}
               </h1>
+              {isFleet && owner.serviceArea ? (
+                <p className="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-primary">
+                  <MapPin className="size-4" />
+                  {owner.serviceArea}
+                </p>
+              ) : null}
               <p className="mt-2 text-sm text-on-surface-variant">
                 Member since {format(owner.createdAt, "MMMM yyyy")}
                 {isFleet ? " · Operator account" : ""}
