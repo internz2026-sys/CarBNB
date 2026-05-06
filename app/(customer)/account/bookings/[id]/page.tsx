@@ -13,6 +13,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { CancelBookingForm } from "./cancel-booking-form";
 import { ReviewForm } from "./review-form";
+import { BookingChatPanel } from "@/components/booking-chat/chat-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -218,6 +219,20 @@ export default async function CustomerBookingDetailPage({
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-8">
+          <BookingChatPanel
+            booking={{
+              id: booking.id,
+              customerId: booking.customerId,
+              ownerId: booking.ownerId,
+              status: booking.status,
+              rentalCompletedAt: booking.rentalCompletedAt,
+            }}
+            viewerId={customer.id}
+            viewerRole="customer"
+          />
+        </div>
 
         {canCancel ? (
           <div className="mt-8">

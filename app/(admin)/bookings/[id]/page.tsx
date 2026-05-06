@@ -24,6 +24,7 @@ import { BookingStatus, PaymentStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
 import { BookingActions } from "./booking-actions";
+import { BookingChatPanel } from "@/components/booking-chat/chat-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -310,6 +311,18 @@ export default async function AdminBookingDetailPage({
               </CardContent>
             </Card>
           ) : null}
+
+          <BookingChatPanel
+            booking={{
+              id: booking.id,
+              customerId: booking.customerId,
+              ownerId: booking.ownerId,
+              status: booking.status,
+              rentalCompletedAt: booking.rentalCompletedAt,
+            }}
+            viewerId={null}
+            viewerRole="admin"
+          />
         </div>
       </div>
     </div>

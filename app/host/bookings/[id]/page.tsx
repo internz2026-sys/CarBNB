@@ -22,6 +22,7 @@ import { getCurrentHost } from "@/lib/current-host";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
 import { HostBookingActions } from "./host-booking-actions";
+import { BookingChatPanel } from "@/components/booking-chat/chat-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -271,6 +272,18 @@ export default async function HostBookingDetailPage({
               ) : null}
             </CardContent>
           </Card>
+
+          <BookingChatPanel
+            booking={{
+              id: booking.id,
+              customerId: booking.customerId,
+              ownerId: booking.ownerId,
+              status: booking.status,
+              rentalCompletedAt: booking.rentalCompletedAt,
+            }}
+            viewerId={session.owner.id}
+            viewerRole="host"
+          />
 
           {booking.cancellationReason ? (
             <Card className="border-red-200 shadow-sm bg-red-50/50">

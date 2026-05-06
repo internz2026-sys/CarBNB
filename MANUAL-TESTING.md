@@ -1255,9 +1255,265 @@ Hosts gain Start + Complete trip controls on `/host/bookings/[id]`. Admin keeps 
 
 ---
 
+## Tier 14 — Booking chat (V1 polling)
+
+Per-booking lifecycle-bounded chat between host and renter, modeled after Grab/Uber trip chats. Opens at CONFIRMED, stays active through ONGOING, remains active for 48h after `rentalCompletedAt`, then goes read-only (history visible, no new sends). Each booking gets its own thread; past bookings between the same (host, customer) are surfaced via an inline link but kept as separate threads. Admin has read-only access to all booking chats from `/bookings/[id]`. Realtime is V1 polling (5s tick, paused on tab blur); the `useChatMessages` hook is the abstraction boundary for a future Supabase Realtime swap.
+
+### Prerequisites
+
+- All Tier 13 prerequisites
+- A verified host with at least one ACTIVE listing
+- A customer who can book against that host's listing
+- Admin account for read-only verification
+
+### T14-A — Chat opens at CONFIRMED, hidden at PENDING
+
+**Setup**
+1. As customer, book a trip against the verified host's listing. Status starts as PENDING.
+
+**PENDING — chat is hidden on all three views**
+2. Customer view: navigate to `/account/bookings/[id]`. Scroll the page. **No chat panel** should appear.
+3. Host view: log in as host, navigate to `/host/bookings/[id]`. **No chat panel**.
+4. Admin view: log in as admin, navigate to `/bookings/[id]`. **No chat panel**.
+5. The page above the would-be panel is unchanged from Tier 13 (booking summary, dates, payment card, etc.).
+
+**CONFIRMED — chat opens with welcome system message**
+6. As host, click **Accept Booking**. Status transitions to CONFIRMED.
+7. Stay on `/host/bookings/[id]`. A new chat panel card appears below the action card / above the cancellation card.
+8. The panel header shows: *"Chat with renter"* + a small message-circle icon.
+9. The header subtitle: *"For trip coordination only — pickup, drop-off, timing updates. Admin can view for support."*
+10. The thread inside contains a single muted gray pill row: *"Booking confirmed by host. Use this chat to coordinate pickup, drop-off, and trip needs."* (system message, kind=system).
+11. Below the thread: the textarea + Send button is rendered (chat is active).
+12. Switch to the customer view at `/account/bookings/[id]`. The panel header shows *"Chat with host"* + same system row + active input.
+13. Switch to the admin view at `/bookings/[id]`. The panel header shows *"Trip chat (read-only)"* + a small Admin view chip + privacy banner: *"Read-only access for support and dispute review. You can't send messages."*. NO input field rendered.
+
+### T14-B — Send messages, polling propagation, optimistic updates
+
+**Setup**
+1. Continue from T14-A with the booking in CONFIRMED. Open two browser windows side-by-side:
+   - Window A: customer view at `/account/bookings/[id]`
+   - Window B: host view at `/host/bookings/[id]`
+
+**Customer sends**
+2. In Window A, type *"Hi! What's the pickup address?"* in the textarea. Counter shows live char count (e.g. "29 / 1000").
+3. Click **Send** (or press Enter).
+4. The message appears IMMEDIATELY on the customer's right side (their own bubble, primary-color background, with timestamp).
+5. The textarea clears.
+
+**Host receives within 5s — no refresh**
+6. In Window B (host view), do nothing. Wait up to 5 seconds.
+7. The customer's message appears on the host's left side (other-party bubble, neutral background).
+8. Host did NOT refresh. The polling hook fetched it.
+
+**Host replies**
+9. In Window B, type *"It's 12 Pine St, Makati. I'll be there by 9 AM."* and send.
+10. Host sees their own message instantly on the right.
+11. In Window A (customer), wait up to 5s. The host's reply appears on the left.
+
+**System messages render distinctly from user messages**
+12. The earlier "Booking confirmed by host..." row should still be visible at the top of both threads, rendered as a centered muted pill (not a bubble).
+13. User messages have rounded bubbles (left or right aligned); system messages don't.
+
+**Multi-line messages preserve line breaks**
+14. In Window A, type a message with line breaks (Shift+Enter inserts newline; Enter sends):
+    ```
+    Address:
+    12 Pine St
+    Makati
+    Building 3, Unit 401
+    ```
+15. Send. The message appears with line breaks preserved (whitespace-pre-wrap).
+
+**URL auto-linking**
+16. In Window B, send: *"Here's the location pin: https://maps.google.com/?q=14.5,121.0"*.
+17. The URL renders as a clickable link. Click it — opens in a new tab.
+
+**Character cap**
+18. Try to paste 1500 chars into the textarea. Browser's `maxLength` caps at 1000. Counter shows "1000 / 1000".
+19. Submit attempts at exactly 1000 chars succeed.
+
+**Empty message guard**
+20. Try to click Send with an empty textarea. Button is disabled.
+21. Try with only spaces ("   "). Submit attempts are blocked client-side; if you bypass, server returns *"Message can't be empty."* (Zod trim+min check).
+
+### T14-C — Tab visibility pause/resume + missed-message catch-up
+
+**Setup**
+1. Continue from T14-B with both windows open.
+
+**Pause polling on blur**
+2. In Window A (customer), open DevTools → Network tab.
+3. Click on Window B (or any other window) so Window A loses focus.
+4. After ~5-10 seconds, check Window A's Network tab. There should be NO `fetchMessagesAfter` requests firing while it's hidden.
+5. The polling tick still runs (setTimeout fires) but the request is skipped via the Page Visibility API check.
+
+**Resume + immediate catch-up**
+6. While Window A is in the background, switch to Window B and send 2-3 messages.
+7. Click back to Window A (give it focus). Within ~1 second:
+   - The Visibility API fires `visibilitychange`
+   - The hook immediately fetches without waiting for the next 5s tick
+   - All 2-3 missed messages appear at once in the thread
+8. Verify in Network: a single fetch request resolves with multiple messages in the response.
+
+**Polling resumes on focus**
+9. After the catch-up fetch, normal 5s polling resumes. Verify in Network that requests fire every ~5s.
+
+### T14-D — Lifecycle transitions write system messages
+
+**Setup**
+1. Use the booking from T14-B/C. Status: CONFIRMED. Both windows still open.
+
+**Trip start (host)**
+2. In the host view, click **Start Rental**. Status → ONGOING.
+3. Within 5s, both windows show a new system pill in the chat: *"Trip started by host · [date], [time]"*.
+4. Format: e.g. *"Trip started by host · May 4, 3:42 PM"*.
+
+**Trip start (admin variant)**
+5. Set up another fresh booking, walk to CONFIRMED. As admin, click **Start Rental** on `/bookings/[id]`.
+6. The system message reads *"Trip started by admin · …"* (different prefix from host-triggered).
+7. Both customer + host views see the message within 5s.
+
+**Trip complete (host)**
+8. Booking from step 2-3 is now ONGOING. Host clicks **Complete Rental**. Status → COMPLETED.
+9. New system pill appears: *"Trip completed by host · [date], [time]. Chat closes in 48h."*.
+10. Below the input area, a small amber **"Closes in 47h 59m"** countdown badge appears next to the character counter.
+
+**Trip complete (admin variant)**
+11. Same as step 5-6 but on a fresh booking via admin. System message: *"Trip completed by admin · …. Chat closes in 48h."*.
+
+**Cancellation mid-trip (admin)**
+12. Set up another fresh booking, walk to CONFIRMED. As admin, click **Cancel** with reason "Vehicle unavailable".
+13. The chat thread gets a final system pill: *"Booking cancelled by admin · reason: Vehicle unavailable. Chat is now closed."*.
+14. The input area is removed; replaced by a muted banner: *"This chat is closed because the booking was cancelled."*
+15. Verify NO new messages can be sent. Send button absent.
+
+**Mark paid (admin)**
+16. On a COMPLETED booking that's still within grace, as admin click **Mark as Paid**.
+17. Chat gets a system pill: *"Payment received (cash) · marked paid by admin"* (with optional notes appended if you typed any).
+
+**Activity log entries are still being written too**
+18. As admin, refresh `/dashboard`. The recent activity feed shows the corresponding `BOOKING_*` / `HOST_BOOKING_*` entries.
+19. Activity log and chat system messages are independent — both should fire on every transition.
+
+### T14-E — 48h grace period and read-only state
+
+**Setup**
+1. You'll need a COMPLETED booking. Use one from T14-D or fresh.
+2. To test the grace expiration without waiting 48h, modify `Booking.rentalCompletedAt` in Prisma Studio to a timestamp 49+ hours in the past on a COMPLETED booking.
+
+**Within grace (active)**
+3. Open the booking detail. Chat panel renders normally with input.
+4. The amber **"Closes in Xh Ym"** countdown badge is visible near the character counter.
+5. Send a message. Works as expected (e.g. *"Hey, I left my phone charger in the cup holder!"*).
+6. The other party receives within 5s.
+
+**Past grace (read-only)**
+7. After the grace expires (or after the Prisma Studio backdating from step 2):
+8. Reload the page. Input area is gone. Replaced by muted banner: *"This chat is now closed. History stays visible. For trip issues, contact support."*
+9. The full thread (including all user messages + system pills) is still readable, scrollable.
+10. Verify in DevTools: the polling tick still runs while the panel is mounted, but the chat is read-only (server `sendMessageAction` would reject if forced).
+11. *(Advanced bypass)* Try to call `sendMessageAction` via DevTools console with the bookingId and a message body. Server returns: **"This chat is no longer accepting new messages."**
+
+**Restore grace by setting rentalCompletedAt to recent**
+12. In Prisma Studio, set `rentalCompletedAt` to "now" on the same booking.
+13. Reload. Chat is active again with countdown showing ~48h. Confirms `getChatState` is purely a function of status + grace + now.
+
+### T14-F — Past-trips link
+
+**Setup**
+1. Same customer + host pair must have at least one COMPLETED booking from prior tests, plus a current ACTIVE/CONFIRMED booking.
+2. If you don't have a COMPLETED prior booking with the same pair, walk one through the lifecycle quickly.
+
+**Customer view shows the link**
+3. Open `/account/bookings/[id]` for a current booking with the same host. The chat panel header should now have an extra row:
+   *"You've rented from this host **N×** before — view past trips"* (where N is the count of prior COMPLETED bookings with the same host, excluding the current one).
+4. The text "view past trips" is a link in primary color. Hover underlines it.
+5. Click. Browser navigates to `/account?priorHost=[ownerId]`.
+6. *(Note: the filter param isn't read by /account in V1 — clicking just lands on the customer's full bookings list. The link is informational + lightweight navigation. Filter implementation is a polish item for later.)*
+
+**Host view shows the mirrored link**
+7. Open `/host/bookings/[id]` for the same current booking. Header subtitle includes:
+   *"You've rented to this customer **N×** before — view past trips"*.
+8. Click. Lands on `/host/bookings?priorCustomer=[customerId]`.
+
+**No prior trips → no link**
+9. Set up a fresh customer + host pair with no shared history. Open the new booking's detail page.
+10. The chat panel header subtitle should NOT show the past-trips link (priorTripCount is 0).
+
+**Excludes the current booking from the count**
+11. The link only appears for prior COMPLETED bookings between the same pair, NOT the current booking itself.
+12. If a customer has 1 current booking + 0 past with this host, no link.
+13. If 1 current + 1 past COMPLETED, link reads "1× before".
+
+### T14-G — Permission & ownership scope
+
+**Setup**
+1. Two customers (Customer A + Customer B) and at least one booking belonging to Customer A.
+
+**Customer B forge attempt**
+2. Note the booking id of Customer A's booking from the URL.
+3. Log in as Customer B. Open DevTools → Console.
+4. Manually call `sendMessageAction` against Customer A's bookingId with any body.
+5. Server returns: **"You can only message bookings you're part of."**
+6. Verify in Prisma Studio: no Message row created for that booking with Customer B's id.
+
+**Customer B reading attempt**
+7. As Customer B, navigate directly to `/account/bookings/[Customer-A's-booking-id]`.
+8. Page should serve a **404 / Not Found** (existing customer-side ownership check).
+9. *(Action-level)* Manually call `fetchMessagesAfterAction` with Customer A's bookingId. Server returns: *"You can only view chats you're part of."* (admin/customer/host-on-booking gate).
+
+**Host clicks send on a non-owned booking**
+10. Same forge attempt as a different host. Server returns: *"You can only message bookings you're part of."*
+11. Page level: `/host/bookings/[other-host's-booking-id]` returns 404 (existing Tier 6 check).
+
+**Admin can read but not send**
+12. As admin, open `/bookings/[any-booking]`. Chat renders read-only.
+13. The textarea is NOT rendered.
+14. *(Forge)* Manually call `sendMessageAction` while authed as admin. Server returns: *"Only customers or hosts on the booking can send messages."* (admin emails resolve to neither customer nor host in `resolveChatSender`).
+
+**Logged-out poll attempt**
+15. Log out completely. Manually call `fetchMessagesAfterAction` via DevTools.
+16. Server returns: *"Not authenticated."*
+
+### T14-H — Edge cases + visual polish
+
+**Empty thread state**
+1. The "Booking confirmed by..." system message is auto-injected, so a fresh CONFIRMED booking always has at least one row in the thread. The "No messages yet. Say hello." empty state should rarely appear in practice — it would only show on a CONFIRMED booking that somehow had its system messages deleted. Still, verify the copy renders correctly if you delete the system rows in Prisma Studio.
+
+**Long messages don't break layout**
+2. Send a message with a very long single word (no spaces): e.g. `"supercalifragilisticexpialidociousxxxxxxxxxxxxxxx"`. Bubble should wrap with `break-words` instead of overflowing.
+3. Send a normal message with multiple paragraphs (Shift+Enter between them). All paragraphs render in the same bubble with line-break preservation.
+
+**Mobile width**
+4. Resize browser to mobile width (~375px).
+5. Bubbles take up appropriate width (max-w-[85%]).
+6. Header / system messages / input area all readable.
+7. Send button doesn't overlap textarea.
+
+**Auto-scroll on new message**
+8. Scroll up in a long thread. Send a new message.
+9. The list should auto-scroll to the bottom to show your just-sent message.
+
+**Send-failure handling**
+10. With the chat active, set DevTools network throttling to **Offline**.
+11. Type a message and send.
+12. Optimistic message appears on your side instantly.
+13. After the request fails, an inline red error appears below the input: e.g. *"You can only message bookings you're part of."* or a generic network error message.
+14. The optimistic row remains visible (a known polish gap — refining is a future polish item).
+15. Disable throttling, click Send again with a different message. Works normally.
+
+**Concurrent sends from both sides**
+16. With both windows open as customer + host, send messages from both within ~1s of each other.
+17. Both sides see both messages within ~5s. No duplication. No overwrites. Server orders by `createdAt`.
+
+**Refresh recovers state**
+18. After active conversation, hard refresh either window. The server-rendered initial batch loads the full thread. Polling resumes from the latest id.
+
+---
+
 ## Adding a new tier
 
-When you ship a new tier (T14+), append a section here following the same structure:
+When you ship a new tier (T15+), append a section here following the same structure:
 
 ```markdown
 ## Tier N — <Tier Name>
