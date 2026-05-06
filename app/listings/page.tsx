@@ -133,6 +133,16 @@ export default async function PublicListingsPage({
         },
         select: { pickupDate: true, returnDate: true, status: true },
       },
+      // Tier 15: surface the active fleet manager (if any) so cards can
+      // render the "managed by X" dual-host label. Take 1 — the schema
+      // (application-enforced) only allows one ACTIVE link per listing.
+      fleetLinks: {
+        where: { status: "ACTIVE" },
+        take: 1,
+        select: {
+          fleet: { select: { id: true, companyName: true, fullName: true } },
+        },
+      },
     },
   });
 
@@ -414,15 +424,25 @@ export default async function PublicListingsPage({
               </div>
             ) : (
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredListings.map((listing) => (
-                  <ListingCard
-                    fromParam={from || undefined}
-                    isFavorited={favoritedIds.has(listing.id)}
-                    key={listing.id}
-                    listing={listing}
-                    untilParam={until || undefined}
-                  />
-                ))}
+                {filteredListings.map((listing) => {
+                  const fleetEntry = listing.fleetLinks[0];
+                  const activeFleet = fleetEntry
+                    ? {
+                        id: fleetEntry.fleet.id,
+                        displayName:
+                          fleetEntry.fleet.companyName ?? fleetEntry.fleet.fullName,
+                      }
+                    : null;
+                  return (
+                    <ListingCard
+                      fromParam={from || undefined}
+                      isFavorited={favoritedIds.has(listing.id)}
+                      key={listing.id}
+                      listing={{ ...listing, activeFleet }}
+                      untilParam={until || undefined}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

@@ -104,14 +104,37 @@ export async function signupAction(
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
 
+  // Tier 15: hosts pick a kind (INDIVIDUAL | FLEET) before submitting. Locked
+  // at signup. Customers don't pass a kind. Fleets get extra fields validated
+  // and stored on the Owner row.
+  const kindRaw = formData.get("kind");
+  const kind = kindRaw === "FLEET" ? "FLEET" : "INDIVIDUAL";
+  const companyName = String(formData.get("companyName") ?? "").trim();
+  const businessRegNumber = String(formData.get("businessRegNumber") ?? "").trim();
+  const serviceArea = String(formData.get("serviceArea") ?? "").trim();
+
   if (role !== "host" && role !== "customer") {
     return { error: "Invalid signup role." };
   }
   if (!fullName || !email || !password) {
-    return { error: "All fields are required." };
+    return { error: "All fields are required.", email };
   }
   if (password.length < 8) {
-    return { error: "Password must be at least 8 characters." };
+    return { error: "Password must be at least 8 characters.", email };
+  }
+  if (role === "host" && kind === "FLEET") {
+    if (!companyName || !businessRegNumber) {
+      return {
+        error: "Fleet operators must provide a company name and business registration number.",
+        email,
+      };
+    }
+    if (!serviceArea) {
+      return {
+        error: "Fleet operators must provide a service area so independent owners can find you.",
+        email,
+      };
+    }
   }
 
   // Guard against collisions in our domain tables before hitting Supabase auth
@@ -120,7 +143,7 @@ export async function signupAction(
     db.customer.findUnique({ where: { email } }),
   ]);
   if (existingOwner || existingCustomer) {
-    return { error: "An account with this email already exists." };
+    return { error: "An account with this email already exists.", email };
   }
 
   const supabase = await createClient();
@@ -128,10 +151,10 @@ export async function signupAction(
     email,
     password,
     options: {
-      data: { fullName, signupRole: role },
+      data: { fullName, signupRole: role, kind },
     },
   });
-  if (authError) return { error: authError.message };
+  if (authError) return { error: authError.message, email };
 
   if (role === "host") {
     await db.owner.create({
@@ -141,9 +164,15 @@ export async function signupAction(
         contactNumber: "",
         address: "",
         status: OwnerStatus.PENDING,
+        kind,
+        companyName: kind === "FLEET" ? companyName : null,
+        businessRegNumber: kind === "FLEET" ? businessRegNumber : null,
+        serviceArea: kind === "FLEET" ? serviceArea : null,
       },
     });
-    redirect("/login?signedUp=host");
+    redirect(
+      kind === "FLEET" ? "/login?signedUp=fleet" : "/login?signedUp=host",
+    );
   } else {
     await db.customer.create({
       data: {

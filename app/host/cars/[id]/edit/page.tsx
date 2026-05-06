@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
-import { DayOfWeek, ListingStatus } from "@/types";
+import { DayOfWeek, ListingStatus, OwnerStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getListingDocumentSignedUrl } from "@/lib/listing-documents";
@@ -13,6 +13,7 @@ import { HostListingPhotoGallery } from "./host-listing-photo-gallery";
 import { HostListingOrCrForm } from "./host-listing-or-cr-form";
 import { HostAvailabilityRulesForm } from "./host-availability-rules-form";
 import { HostAvailabilityExceptionsForm } from "./host-availability-exceptions-form";
+import { FleetLinkSection } from "./fleet-link-section";
 
 export const dynamic = "force-dynamic";
 
@@ -55,6 +56,44 @@ export default async function HostEditListingPage({
   }));
 
   const rulesByDay = new Map(listing.availabilityRules.map((r) => [r.dayOfWeek, r]));
+
+  // Tier 15: only INDIVIDUAL hosts see the fleet-link section. Fleets viewing
+  // their own owned cars don't need it (they're the destination, not the
+  // requester).
+  const showFleetLinkSection = session.owner.kind === "INDIVIDUAL";
+
+  // Load any open or active link for this car + the directory of verified
+  // fleets (only if we're going to render the section). Inline the parallel
+  // load so the include relation type is correctly inferred — annotating the
+  // let-binding above with the bare Awaited<...> type drops the `fleet`
+  // relation from the inferred shape.
+  const fleetState = showFleetLinkSection
+    ? await Promise.all([
+        db.fleetCarLink.findFirst({
+          where: {
+            listingId: listing.id,
+            status: { in: ["PENDING", "ACTIVE"] },
+          },
+          include: {
+            fleet: { select: { id: true, companyName: true, fullName: true } },
+          },
+        }),
+        db.owner.findMany({
+          where: { kind: "FLEET", status: OwnerStatus.VERIFIED },
+          select: {
+            id: true,
+            companyName: true,
+            fullName: true,
+            bio: true,
+            serviceArea: true,
+          },
+          orderBy: { createdAt: "asc" },
+        }),
+      ])
+    : null;
+
+  const fleetLink = fleetState?.[0] ?? null;
+  const fleetOptions = fleetState?.[1] ?? [];
 
   return (
     <div className="space-y-8 max-w-4xl mx-auto pb-10">
@@ -139,6 +178,32 @@ export default async function HostEditListingPage({
           reason: ex.reason,
         }))}
       />
+
+      {showFleetLinkSection ? (
+        <FleetLinkSection
+          fleets={fleetOptions.map((f) => ({
+            id: f.id,
+            displayName: f.companyName ?? f.fullName,
+            bio: f.bio,
+            serviceArea: f.serviceArea,
+          }))}
+          link={
+            fleetLink && (fleetLink.status === "PENDING" || fleetLink.status === "ACTIVE")
+              ? {
+                  id: fleetLink.id,
+                  status: fleetLink.status as "PENDING" | "ACTIVE",
+                  fleetId: fleetLink.fleetId,
+                  fleetName:
+                    fleetLink.fleet.companyName ?? fleetLink.fleet.fullName,
+                  managementFeePercent: fleetLink.managementFeePercent,
+                  requestedAt: fleetLink.requestedAt.toISOString(),
+                  respondedAt: fleetLink.respondedAt?.toISOString() ?? null,
+                }
+              : null
+          }
+          listingId={listing.id}
+        />
+      ) : null}
     </div>
   );
 }

@@ -1511,9 +1511,321 @@ Per-booking lifecycle-bounded chat between host and renter, modeled after Grab/U
 
 ---
 
+## Tier 15 — Fleet operators + linking
+
+Splits the Owner role into two kinds: independent owners (existing behavior) and fleet operators (registered car rental companies). Adds a fleet directory at `/fleets`, a dual-host onboarding flow at `/signup`, owner-initiated link requests on `/host/cars/[id]/edit`, fleet-side approve/reject on the host dashboard, and "managed by X" labels on listing cards + listing detail. Booking authority and chat counterparty are unchanged in Tier 15 — those route to the fleet in Tier 16.
+
+### Prerequisites
+
+- All Tier 14 prerequisites
+- Admin account that can verify owner accounts
+- For full coverage you'll create at least one INDIVIDUAL owner and at least one FLEET operator during testing
+
+### T15-A — Two-button host signup screen
+
+**Setup**
+1. Run `npm run dev`. Open `/signup` in incognito (logged out).
+
+**Initial render**
+2. Page shows two cards side-by-side: "Host Sign-up" on the left and "Customer Sign-up" on the right.
+3. Inside the Host card you should NOT see the regular name/email/password form initially. Instead: a "Tell us a bit about yourself." prompt with two large stacked buttons:
+   - **Independent Car Owner** with caption *"I have my own car and want to rent it out myself..."*
+   - **Registered Car Rental Operator** with caption *"I run a rental company and want to manage cars on behalf of multiple owners..."*
+4. Customer card on the right is unchanged from prior tiers.
+
+**Pick Independent — minimal form**
+5. Click the **Independent Car Owner** button.
+6. The card flips to a small "Independent Car Owner" pill + a "Change account type" link at the top, then the regular signup form appears (Full Name, Email, Password).
+7. Fill in test data, e.g. `Joe Independent`, `joe-individual@test.com`, `Test1234!`. Click **Create Host Account**.
+8. Server creates the Owner row with `kind=INDIVIDUAL`, `companyName=null`, `businessRegNumber=null`, `status=PENDING`. Verify in Prisma Studio.
+9. You're redirected to `/login?signedUp=host`.
+
+**Pick Fleet — extended form**
+10. Open `/signup` again. Click **Registered Car Rental Operator**.
+11. The card now shows a tertiary-color "Registered Car Rental Operator" pill + the form, with THREE additional required fields at the top: **Company Name**, **Business Registration Number**, and **Service Area**.
+12. The Service Area input has placeholder *"e.g. Makati · BGC · Metro Manila"* and a helper line beneath: *"Public — independent owners use this to pick a fleet near their car..."*
+13. The "Full Name" label changes to **"Contact Person — Full Name"** to disambiguate the company from the human contact.
+14. Fill in: `Acme Rentals Inc.`, `DTI-ABC-12345`, `Makati · BGC`, `Maria Santos`, `acme-fleet@test.com`, `Test1234!`. Click **Create Fleet Account**.
+15. Server creates the Owner row with `kind=FLEET`, `companyName="Acme Rentals Inc."`, `businessRegNumber="DTI-ABC-12345"`, `serviceArea="Makati · BGC"`, `status=PENDING`. Verify in Prisma Studio.
+16. Redirected to `/login?signedUp=fleet`.
+
+**Switch back from kind selection**
+16. Open `/signup`. Click Independent. Click "Change account type" link at the top. Form clears, two-button screen returns.
+17. Pick the other option. New form renders.
+
+**Customer signup unchanged (regression)**
+18. Click into the Customer card. Form is the basic name/email/password — no kind buttons. Submit. Customer row created. No `kind` field. Standard flow.
+
+**Validation: fleet missing required fields**
+19. Pick Fleet. Submit with empty Company Name. Server should reject with: *"Fleet operators must provide a company name and business registration number."*
+20. Same for empty Business Registration Number.
+21. Fill Company Name + Business Reg Number, but leave Service Area empty. Server rejects with: *"Fleet operators must provide a service area so independent owners can find you."*
+
+**Email collision check (regression)**
+22. Try to sign up an Individual with the same email as the fleet account from step 14. Server rejects: *"An account with this email already exists."* (existing collision guard, unchanged).
+
+### T15-B — Admin verifies the new fleet account
+
+**Setup**
+1. Log in as admin. Navigate to `/owners`.
+
+**Pending fleet shows in queue**
+2. The owners directory should show your newly-signed-up fleet (e.g. `Acme Rentals Inc.`) with status PENDING.
+3. The owner's name displays — for FLEET kind, the page may render `companyName` or `fullName` depending on the column (existing UI doesn't yet render the kind label; that's a polish item for a future tier).
+
+**Approve the fleet**
+4. Click the fleet's row → `/owners/[id]`. Use **Verify** action to flip status PENDING → VERIFIED.
+5. Activity log entry: `OWNER_VERIFIED` with the company name in the description.
+6. Verify in Prisma Studio: `Owner.status = VERIFIED, kind = FLEET`.
+
+**Repeat for the individual**
+7. Same flow for the INDIVIDUAL owner from T15-A. Status → VERIFIED.
+
+### T15-C — Fleet directory at /fleets + extended /hosts/[id] profile
+
+**Setup**
+1. Have at least one VERIFIED FLEET owner from T15-B. Log out (test as guest).
+
+**Directory page renders**
+2. Navigate to `/fleets`. Header + page render.
+3. Heading: **"Fleet operators"**. Subtitle explains the program.
+4. Below: a grid of fleet operator cards. Each card shows: avatar with initials, "VERIFIED OPERATOR" eyebrow, company name, **service area line** with a MapPin icon in primary color (e.g. *"📍 Makati · BGC"* — only renders when `serviceArea` is set), "Member since [Month Year]", car count, optional bio (only after they fill it on `/host/profile`).
+5. Cards are linked — clicking navigates to `/hosts/[fleet-id]`.
+
+**Empty state**
+6. If no verified fleets exist (e.g. fresh DB), the page shows a centered card with a Building icon and copy *"No fleet operators yet"*.
+
+**Public host profile — INDIVIDUAL kind (regression)**
+7. Navigate to `/hosts/[an-individual-host-id]` from any prior test data.
+8. Header reads "Verified Host" (not "Verified Fleet Operator"). Display name = `fullName`.
+9. Listings grid heading: **"Listings (N)"** — only owned cars (existing T11 behavior preserved).
+10. Bio (if set) renders without an "About this company" header.
+
+**Public host profile — FLEET kind**
+11. Navigate to `/hosts/[fleet-id]`.
+12. Header eyebrow: **"Verified Fleet Operator"**.
+13. Header name = `companyName` (e.g. `Acme Rentals Inc.`), NOT the contact person's full name.
+14. Below the company name (above member-since): a **service area line** in primary color with a small MapPin icon (e.g. *"📍 Makati · BGC"*). Renders only when `serviceArea` is set.
+15. Member-since line ends with **"· Operator account"**.
+16. If the fleet has a bio set (`/host/profile`), it renders under an **"About this company"** heading instead of the plain bio block individuals get.
+17. Listings grid heading: **"Cars under management (N)"** (different from individual's "Listings").
+18. Initially, before any cars are linked, this fleet's grid shows their own owned cars (likely 0 if you haven't created any). Empty state copy uses `companyName` instead of first name.
+
+**Browser tab title**
+18. Verified individual: tab title `[Full Name] | DriveXP Host`.
+19. Verified fleet: tab title `[Company Name] | DriveXP Fleet Operator`.
+
+### T15-D — Owner-initiated link request flow
+
+**Setup**
+1. Log in as an INDIVIDUAL host (verified). They should have at least one car listing (any status — PENDING_APPROVAL is fine for testing the link UI).
+2. Navigate to `/host/cars/[id]/edit`.
+
+**Section renders for INDIVIDUAL host**
+3. Scroll to the bottom. After the existing photo / OR-CR / availability sections you should see a new card titled **"Manage with a fleet operator (optional)"** (or similar).
+4. Description explains the program. CTA button: **"Browse fleet operators"** (with a chevron).
+5. Click the CTA. The card flips to a "Request fleet management" form with:
+   - A fleet picker (dropdown) listing all VERIFIED FLEETs
+   - A "Proposed management fee (%)" optional number input
+   - A **Send request** button (disabled until a fleet is selected)
+   - A **Cancel** button to flip back to the initial state
+
+**Pick a fleet + submit**
+6. Open the dropdown. Each option shows the company name on the first line and (if `serviceArea` is set) a **service area line** with a primary-color MapPin icon underneath the name (e.g. *"📍 Makati · BGC"*). Bio (if any) renders below that.
+7. Pick a fleet from the dropdown. Below the dropdown, two helper rows appear: a **service area row** (primary color with MapPin: *"Service area: Makati · BGC"*) and a **"View [Fleet] profile →"** link to the public profile.
+8. Optionally fill in the fee (e.g. `15`). Click **Send request**.
+9. The card refreshes to show the new state: **"Awaiting response from [Fleet Name]"** with the proposed fee shown and a **Cancel request** button.
+10. Verify in Prisma Studio: a new `FleetCarLink` row exists with `status = PENDING`, the right `listingId`, `fleetId`, `managementFeePercent`, and `requestedAt = now`.
+
+**Activity log entry**
+9. Log in as admin → `/dashboard`. Recent activity feed has a new `FLEET_LINK_REQUESTED` row: *"Owner [email] requested [Fleet Name] to manage [Brand Model] (plate)"*.
+
+**Cancel pending request**
+10. Back on the host edit page (still on the pending state). Click **Cancel request**.
+11. Card flips back to the initial "Manage with a fleet operator" state.
+12. Verify in Prisma Studio: the FleetCarLink row's `status = INACTIVE`, `severedAt` is set.
+13. Activity log: `FLEET_LINK_CANCELLED` entry.
+
+**Block stacked requests**
+14. Send another request to the same fleet. Edit page reflects pending state.
+15. Try to forge a second pending request via DevTools (call `requestLinkAction` again). Server should reject with: *"You already have a pending request for this car."*
+
+**FLEET host doesn't see this section**
+16. Log out. Log in as a verified FLEET owner. Create a car listing as a fleet (the fleet can own cars too — they don't need to link to themselves).
+17. Navigate to `/host/cars/[the-fleet-owned-car-id]/edit`. The fleet-link section should NOT appear (only INDIVIDUAL hosts see it).
+
+### T15-E — Fleet approves / rejects requests on dashboard
+
+**Setup**
+1. Have a PENDING `FleetCarLink` row from T15-D. Log out from the individual.
+2. Log in as the fleet operator (the one the request was sent to).
+
+**Dashboard shows the pending request**
+3. Land on `/host/dashboard`.
+4. Welcome line shows the fleet's company name first name (e.g. "Welcome, Acme").
+5. Tile labels are FLEET-flavored:
+   - First tile: **"Cars Under Management"** (instead of "Active Listings"), value = owned + linked count, sub = "Owned + N linked"
+   - Other tiles: Upcoming Bookings + Total Earnings (unchanged).
+6. Below the tiles, a new section: **"Incoming link requests"** with subtitle "N pending".
+7. Each pending row shows:
+   - Year + plate number eyebrow
+   - Brand + Model
+   - "Requested by [Owner Name]" with link to `/hosts/[owner-id]`
+   - Date + optional fee
+   - **Approve** + **Reject** buttons on the right
+
+**Approve flow**
+8. Click **Approve**. Button shows "Approving..." briefly. Page refreshes.
+9. The pending row disappears.
+10. Verify in Prisma Studio: FleetCarLink `status=ACTIVE`, `respondedAt=now`.
+11. Activity log: `FLEET_LINK_APPROVED` entry.
+
+**Reject flow (separate request)**
+12. Send another link request from the individual side (different car). Refresh the fleet's dashboard.
+13. Click **Reject** on the new pending row. Page refreshes.
+14. Verify in Prisma Studio: FleetCarLink `status=INACTIVE`, `respondedAt + severedAt = now`.
+15. Activity log: `FLEET_LINK_REJECTED` entry.
+
+**Empty state**
+16. With no pending requests, the section shows **"No incoming requests right now"** with helper copy + a link to `/fleets`.
+
+**INDIVIDUAL dashboard regression**
+17. Log out. Log in as the individual host. Their dashboard should NOT show the "Incoming link requests" section. (Only FLEET kind sees it.)
+18. If the individual has 1+ pending outgoing requests, they may see a small amber banner pointing to `/host/cars`. Verify this state.
+
+### T15-F — Owner / fleet sever an active link
+
+**Setup**
+1. Have an ACTIVE `FleetCarLink` between an individual and a fleet (from T15-E approve flow).
+
+**Owner severs from car edit page**
+2. Log in as the individual host. Navigate to `/host/cars/[that-car-id]/edit`.
+3. The fleet-link section now shows the **"Managed by [Fleet]"** state with:
+   - Fleet name as a link to `/hosts/[fleet-id]`
+   - Agreed management fee (if any)
+   - "Active since" date
+   - **Sever link** button (destructive red)
+4. Click **Sever link**. Card flips back to the initial "Manage with a fleet operator (optional)" state.
+5. Verify in Prisma Studio: FleetCarLink `status=INACTIVE`, `severedAt=now`.
+6. Activity log: `FLEET_LINK_SEVERED` entry — describes who severed (Owner or Fleet).
+
+**Fleet severs from their dashboard / cars page**
+7. Set up a fresh ACTIVE link.
+8. Log in as the fleet. Navigate to `/host/cars`. *(Note: in V1 the cars list might not show a sever button directly — the fleet can sever via `/host/cars/[id]/edit` once we add it for fleets, or via the API. Verify the action works server-side.)*
+9. Forge a `severLinkAction` call as the fleet against the active link's id (DevTools).
+10. Server allows it (fleet has authority). Status flips to INACTIVE.
+11. Activity log entry shows "Fleet [email] severed the link..."
+
+### T15-G — Public-facing "managed by X" labels
+
+**Setup**
+1. Have at least one ACTIVE FleetCarLink on a listing whose status is ACTIVE. (Walk a fresh listing through admin approval if needed.)
+2. Log out (or any viewer role).
+
+**Listing card label on /listings**
+3. Navigate to `/listings`. Find the card for the fleet-managed car.
+4. Below the title row (year · type · location), there should be a new line in primary color with a Building icon: **"Managed by [Fleet Name]"**.
+5. Cards for non-managed listings should NOT show this line.
+
+**Listing detail Owner card**
+6. Click into the fleet-managed listing. `/listings/[id]` page renders.
+7. Scroll to the Owner card.
+8. The owner's name is the link as before. Below the name, in muted text: **"Managed by [Fleet Name]"** with the fleet name as a primary-color link to `/hosts/[fleet-id]`.
+9. Click the fleet name. Lands on the fleet's public profile.
+
+**Cards on /account/favorites + /hosts/[id]**
+10. As a customer, favorite the fleet-managed listing.
+11. Navigate to `/account/favorites`. The card shows the same "Managed by" label.
+12. Navigate to `/hosts/[individual-owner-id]`. Their listings include this car (since they own it) — the card on their profile shows "Managed by [Fleet]".
+13. Navigate to `/hosts/[fleet-id]`. Their "Cars under management" grid includes this car too. The card here also shows "Managed by [Fleet]" — slightly redundant on the fleet's own profile, but consistent.
+
+**Sever the link → label disappears**
+14. Sever the link (T15-F flow). Refresh the listings page.
+15. The "Managed by" line is gone from the card and from the listing detail Owner card.
+
+### T15-H — Landing page CTAs for fleet operators
+
+**Setup**
+1. Open `/` in incognito.
+
+**Header nav**
+2. The top nav (between logo and right-side actions) should now include a "For Operators" link between "Browse Cars" and "How It Works".
+3. Click it. Page scrolls smoothly to the new `#fleet-operator-journey` section.
+
+**Hero pill below the two big CTAs**
+4. Scroll back to the hero. Below the two large buttons (Browse Cars + Become a Host) you should see a smaller text link: *"Run a fleet? See operator program →"*.
+5. Click it. Same scroll-to-section behavior.
+
+**Dedicated section content**
+6. The `#fleet-operator-journey` section renders with:
+   - "For Fleet Operators" tertiary-color pill at the top
+   - Headline: **"Run a rental company? Aggregate owners under your management."**
+   - 4-step walkthrough (Sign up → Get listed in directory → Approve link requests → Manage bookings)
+   - Two CTAs: **"Sign up as an operator"** linking to `/signup#host` + **"Browse existing operators"** linking to `/fleets`
+   - On the right: a "Why operators link with DriveXP" card with 4 value props
+
+**Footer**
+7. Scroll to the footer. Under the "Platform" column you should see new links: **"For Operators"** and **"Fleet Directory"**.
+8. Click "For Operators" → scrolls to the new section.
+9. Click "Fleet Directory" → navigates to `/fleets`.
+
+**All viewer roles see the CTAs**
+10. Log in as a customer. Visit `/`. The hero pill + header link + section + footer links should all still render. (No role-conditional hiding in V1.)
+11. Same for admin and host viewers.
+
+### T15-I — Permission & edge cases
+
+**Setup**
+1. Have one INDIVIDUAL host, one VERIFIED FLEET, one PENDING FLEET (not yet verified by admin), one SUSPENDED FLEET (admin flipped status).
+
+**Pending fleet doesn't appear in directory**
+2. Visit `/fleets`. Only VERIFIED fleets show. Pending and suspended ones absent.
+
+**Pending fleet's profile is 404**
+3. Direct URL `/hosts/[pending-fleet-id]`. Returns 404 (Tier 11 guard preserved).
+
+**Owner can't request a link to a non-VERIFIED fleet**
+4. *(Forge.)* As an INDIVIDUAL host, manually call `requestLinkAction` with the PENDING fleet's id. Server rejects: *"Selected fleet operator is not verified yet."*
+
+**Fleet can't approve while their own status is not VERIFIED**
+5. As the PENDING fleet, forge an `approveLinkAction` against any pending request directed at them.
+6. Server rejects: *"Your fleet account must be verified before approving requests."*
+
+**Fleet can only act on requests directed to them**
+7. Set up two fleets (Fleet A + Fleet B) and a pending request for Fleet A.
+8. As Fleet B, forge `approveLinkAction` against Fleet A's pending link.
+9. Server rejects: *"This request isn't for your fleet."*
+
+**Owner can only sever / cancel links on their own cars**
+10. *(Forge.)* As Individual A, call `severLinkAction` against an active link belonging to Individual B's car.
+11. Server rejects: *"Only the car's owner or the managing fleet can sever this link."*
+
+**FLEET can't request a link to another fleet (Tier 15 prevents chains)**
+12. As a verified FLEET, forge a `requestLinkAction` to manage one of their cars under another fleet.
+13. Server rejects: *"Only independent car owners can request fleet management."*
+
+**Two-fleets-on-one-car prevention**
+14. Have an ACTIVE link on a car. As the same individual, forge a new `requestLinkAction` to a different fleet.
+15. Server rejects: *"This car is already managed by a fleet. Sever the active link first."*
+
+**Application-level unique-active-link constraint**
+16. *(DB-level forge.)* In Prisma Studio, manually create two ACTIVE FleetCarLink rows for the same listingId. Save succeeds at the DB level (no partial unique index in Prisma schema — application enforces).
+17. Refresh the host edit page. The fleet-link section may render unexpectedly. The application-layer guard inside `approveLinkAction` is what normally prevents this; manual DB tampering is out of scope.
+18. Cleanup: delete the duplicate Prisma Studio row.
+
+**Activity log entries are auditable**
+19. Confirm all five FLEET_LINK_* action codes have written entries during your testing:
+    - `FLEET_LINK_REQUESTED`
+    - `FLEET_LINK_CANCELLED`
+    - `FLEET_LINK_APPROVED`
+    - `FLEET_LINK_REJECTED`
+    - `FLEET_LINK_SEVERED`
+
+---
+
 ## Adding a new tier
 
-When you ship a new tier (T15+), append a section here following the same structure:
+When you ship a new tier (T16+), append a section here following the same structure:
 
 ```markdown
 ## Tier N — <Tier Name>

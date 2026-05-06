@@ -193,6 +193,12 @@ export default async function LandingPage() {
             </Link>
             <Link
               className="text-sm font-medium text-on-surface-variant transition hover:text-primary"
+              href="#fleet-operator-journey"
+            >
+              For Operators
+            </Link>
+            <Link
+              className="text-sm font-medium text-on-surface-variant transition hover:text-primary"
               href="#how-it-works"
             >
               How It Works
@@ -290,6 +296,13 @@ export default async function LandingPage() {
                     Become a Host
                   </Link>
                 </div>
+                <Link
+                  className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary transition hover:text-primary-container"
+                  href="#fleet-operator-journey"
+                >
+                  Run a fleet? See operator program
+                  <ArrowRight className="size-4" />
+                </Link>
 
                 <div className="mt-10 flex flex-wrap gap-3">
                   {["Verified hosts", "Transparent payouts", "Support-led trips"].map(
@@ -474,6 +487,112 @@ export default async function LandingPage() {
                 </div>
               </ScrollReveal>
             </div>
+          </div>
+        </section>
+
+        <section className="scroll-mt-28 px-6 py-24" id="fleet-operator-journey">
+          <div className="mx-auto grid max-w-7xl gap-14 lg:grid-cols-[1fr_1.1fr]">
+            <ScrollReveal from="left">
+              <div>
+                <div className="inline-flex rounded-full bg-tertiary-fixed px-4 py-2 text-sm font-bold text-on-tertiary-fixed-variant">
+                  For Fleet Operators
+                </div>
+                <h2 className="mt-6 font-headline text-4xl font-extrabold tracking-tight text-on-surface sm:text-5xl">
+                  Run a rental company? Aggregate owners under your management.
+                </h2>
+                <p className="mt-5 max-w-xl text-base leading-7 text-on-surface-variant sm:text-lg">
+                  Independent car owners can request to link their cars to your fleet.
+                  Once approved, you handle bookings, scheduling, and customer
+                  coordination on their behalf — all on one dashboard. They stay the
+                  legal owner; you focus on operations.
+                </p>
+
+                <ul className="mt-8 space-y-4 text-sm leading-6 text-on-surface-variant">
+                  <li className="flex gap-3">
+                    <span className="mt-1 grid size-6 shrink-0 place-items-center rounded-full bg-primary text-on-primary text-xs font-bold">1</span>
+                    <span>
+                      <strong className="text-on-surface">Sign up as a fleet operator.</strong>{" "}
+                      Provide your company name and business registration number. An
+                      admin reviews your account and approves once docs check out.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="mt-1 grid size-6 shrink-0 place-items-center rounded-full bg-primary text-on-primary text-xs font-bold">2</span>
+                    <span>
+                      <strong className="text-on-surface">Get listed in the directory.</strong>{" "}
+                      Independent owners browse{" "}
+                      <Link className="text-primary hover:underline" href="/fleets">
+                        our fleet directory
+                      </Link>
+                      {" "}and send you a link request for cars they want managed.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="mt-1 grid size-6 shrink-0 place-items-center rounded-full bg-primary text-on-primary text-xs font-bold">3</span>
+                    <span>
+                      <strong className="text-on-surface">Approve link requests.</strong>{" "}
+                      Pending requests show up on your host dashboard. Approve to
+                      take over operational management; reject if it&apos;s not a fit.
+                    </span>
+                  </li>
+                  <li className="flex gap-3">
+                    <span className="mt-1 grid size-6 shrink-0 place-items-center rounded-full bg-primary text-on-primary text-xs font-bold">4</span>
+                    <span>
+                      <strong className="text-on-surface">Manage bookings on one dashboard.</strong>{" "}
+                      Confirm, start, and complete trips on owned + linked cars from
+                      your host workspace. The original owner stays informed.
+                    </span>
+                  </li>
+                </ul>
+
+                <div className="mt-10 flex flex-wrap gap-4">
+                  <Link
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-7 py-3.5 text-base font-bold text-on-primary shadow-[0_12px_30px_rgb(0_82_204_/_0.18)] transition hover:opacity-95"
+                    href="/signup#host"
+                  >
+                    Sign up as an operator
+                    <ArrowRight className="size-4" />
+                  </Link>
+                  <Link
+                    className="inline-flex items-center justify-center rounded-full bg-surface-container-highest px-7 py-3.5 text-base font-bold text-primary transition hover:bg-surface-variant"
+                    href="/fleets"
+                  >
+                    Browse existing operators
+                  </Link>
+                </div>
+              </div>
+            </ScrollReveal>
+
+            <ScrollReveal delay={120} from="right">
+              <div className="rounded-[2rem] bg-surface-container-lowest p-8 shadow-[0_18px_50px_rgb(19_27_46_/_0.06)]">
+                <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+                  Why operators link with DriveXP
+                </div>
+                <ul className="mt-6 space-y-5 text-sm leading-6 text-on-surface-variant">
+                  <li>
+                    <strong className="block text-on-surface">No fleet build-out cost.</strong>
+                    Independent owners contribute the cars; you contribute the
+                    operational expertise.
+                  </li>
+                  <li>
+                    <strong className="block text-on-surface">Transparent agreements.</strong>
+                    Capture the management fee percentage at link approval time. Both
+                    sides see the terms before activation.
+                  </li>
+                  <li>
+                    <strong className="block text-on-surface">Trust signal preserved.</strong>
+                    Public listings show both names — &ldquo;Hosted by Joe · managed by
+                    Acme Rentals&rdquo; — so customers know exactly who they&apos;re
+                    dealing with on the operations side.
+                  </li>
+                  <li>
+                    <strong className="block text-on-surface">Owner stays in the loop.</strong>
+                    Original owners can sever the link anytime and view all activity on
+                    their cars. No surprises, no opaque relationships.
+                  </li>
+                </ul>
+              </div>
+            </ScrollReveal>
           </div>
         </section>
 
@@ -751,6 +870,12 @@ export default async function LandingPage() {
                 </Link>
                 <Link className="block text-on-surface-variant transition hover:text-primary" href="#owner-journey">
                   Host Journey
+                </Link>
+                <Link className="block text-on-surface-variant transition hover:text-primary" href="#fleet-operator-journey">
+                  For Operators
+                </Link>
+                <Link className="block text-on-surface-variant transition hover:text-primary" href="/fleets">
+                  Fleet Directory
                 </Link>
               </div>
             </div>

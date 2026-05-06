@@ -5,31 +5,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { SignupForm } from "./signup-form";
-
-const signupRoles = [
-  {
-    id: "host",
-    badge: "Host Sign-up",
-    title: "Create a car owner or host account",
-    description:
-      "Set up your marketplace profile to list vehicles, manage schedules, and track payouts.",
-    namePlaceholder: "Alex Rivera",
-    emailPlaceholder: "host@drivexp.com",
-    actionLabel: "Create Host Account",
-    icon: ShieldCheck,
-  },
-  {
-    id: "customer",
-    badge: "Customer Sign-up",
-    title: "Create a customer account",
-    description:
-      "Save favorite cars, manage your trips, and book curated vehicles with confidence.",
-    namePlaceholder: "Jamie Cruz",
-    emailPlaceholder: "traveler@drivexp.com",
-    actionLabel: "Create Customer Account",
-    icon: UserRound,
-  },
-] as const;
+import { HostSignupFlow } from "./host-signup-flow";
 
 export default function SignupPage() {
   return (
@@ -72,41 +48,63 @@ export default function SignupPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          {signupRoles.map((role) => {
-            const Icon = role.icon;
+          {/* Host signup card — Tier 15 makes this a 2-step flow:
+              first pick Independent vs Fleet, then fill out the form. */}
+          <Card
+            className="rounded-[2rem] border-none bg-surface-container-lowest shadow-[0_22px_50px_rgb(19_27_46_/_0.08)]"
+            id="host"
+          >
+            <CardHeader className="space-y-3 px-6 pb-3 pt-8 sm:px-8">
+              <div className="grid size-14 place-items-center rounded-[1.25rem] bg-surface-container text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">
+                <ShieldCheck className="size-7" />
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+                Host Sign-up
+              </div>
+              <CardTitle className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
+                Create a car owner or fleet operator account
+              </CardTitle>
+              <CardDescription className="text-sm leading-6 text-on-surface-variant">
+                Set up your marketplace profile to list vehicles, manage schedules, and
+                track payouts.
+              </CardDescription>
+            </CardHeader>
 
-            return (
-              <Card
-                className="rounded-[2rem] border-none bg-surface-container-lowest shadow-[0_22px_50px_rgb(19_27_46_/_0.08)]"
-                id={role.id}
-                key={role.id}
-              >
-                <CardHeader className="space-y-3 px-6 pb-3 pt-8 sm:px-8">
-                  <div className="grid size-14 place-items-center rounded-[1.25rem] bg-surface-container text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">
-                    <Icon className="size-7" />
-                  </div>
-                  <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
-                    {role.badge}
-                  </div>
-                  <CardTitle className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
-                    {role.title}
-                  </CardTitle>
-                  <CardDescription className="text-sm leading-6 text-on-surface-variant">
-                    {role.description}
-                  </CardDescription>
-                </CardHeader>
+            <CardContent className="px-6 pb-8 sm:px-8">
+              <HostSignupFlow />
+            </CardContent>
+          </Card>
 
-                <CardContent className="px-6 pb-8 sm:px-8">
-                  <SignupForm
-                    emailPlaceholder={role.emailPlaceholder}
-                    namePlaceholder={role.namePlaceholder}
-                    role={role.id}
-                    submitLabel={role.actionLabel}
-                  />
-                </CardContent>
-              </Card>
-            );
-          })}
+          {/* Customer signup card — unchanged from prior tiers. */}
+          <Card
+            className="rounded-[2rem] border-none bg-surface-container-lowest shadow-[0_22px_50px_rgb(19_27_46_/_0.08)]"
+            id="customer"
+          >
+            <CardHeader className="space-y-3 px-6 pb-3 pt-8 sm:px-8">
+              <div className="grid size-14 place-items-center rounded-[1.25rem] bg-surface-container text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">
+                <UserRound className="size-7" />
+              </div>
+              <div className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
+                Customer Sign-up
+              </div>
+              <CardTitle className="font-headline text-2xl font-extrabold tracking-tight text-on-surface">
+                Create a customer account
+              </CardTitle>
+              <CardDescription className="text-sm leading-6 text-on-surface-variant">
+                Save favorite cars, manage your trips, and book curated vehicles with
+                confidence.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent className="px-6 pb-8 sm:px-8">
+              <SignupForm
+                emailPlaceholder="traveler@drivexp.com"
+                namePlaceholder="Jamie Cruz"
+                role="customer"
+                submitLabel="Create Customer Account"
+              />
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

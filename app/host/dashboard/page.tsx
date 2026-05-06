@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { Car, CalendarClock, Wallet, ShieldAlert, ShieldCheck } from "lucide-react";
+import { format } from "date-fns";
+import { Building2, Car, CalendarClock, Wallet, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { BookingStatus, ListingStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
+import { FleetRequestActions } from "./fleet-request-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,21 @@ export default async function HostDashboardPage() {
   }
 
   const ownerId = session.owner.id;
+  const isFleet = session.owner.kind === "FLEET";
+  const displayName =
+    isFleet && session.owner.companyName
+      ? session.owner.companyName
+      : session.owner.fullName;
 
-  const [activeListings, upcomingBookings, earningsAgg] = await Promise.all([
+  const [
+    activeListings,
+    upcomingBookings,
+    earningsAgg,
+    managedCarsCount,
+    pendingFleetRequests,
+    activeOutgoingLink,
+    incomingPendingRequests,
+  ] = await Promise.all([
     db.carListing.count({
       where: { ownerId, status: ListingStatus.ACTIVE },
     }),
@@ -45,6 +60,47 @@ export default async function HostDashboardPage() {
       where: { ownerId, status: BookingStatus.COMPLETED },
       _sum: { ownerPayout: true },
     }),
+    // FLEET-only: how many cars are currently managed via active links
+    isFleet
+      ? db.fleetCarLink.count({
+          where: { fleetId: ownerId, status: "ACTIVE" },
+        })
+      : Promise.resolve(0),
+    // FLEET-only: incoming pending requests
+    isFleet
+      ? db.fleetCarLink.count({
+          where: { fleetId: ownerId, status: "PENDING" },
+        })
+      : Promise.resolve(0),
+    // INDIVIDUAL-only: the outgoing pending request count (for completeness)
+    !isFleet
+      ? db.fleetCarLink.count({
+          where: {
+            listing: { ownerId },
+            status: "PENDING",
+          },
+        })
+      : Promise.resolve(0),
+    // FLEET-only: list of pending requests with the actual rows so we can
+    // render approve/reject inline on the dashboard
+    isFleet
+      ? db.fleetCarLink.findMany({
+          where: { fleetId: ownerId, status: "PENDING" },
+          orderBy: { requestedAt: "asc" },
+          include: {
+            listing: {
+              select: {
+                id: true,
+                brand: true,
+                model: true,
+                plateNumber: true,
+                year: true,
+                owner: { select: { id: true, fullName: true } },
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const totalEarnings = earningsAgg._sum.ownerPayout ?? 0;
@@ -53,10 +109,12 @@ export default async function HostDashboardPage() {
     <div className="pb-8">
       <div className="mb-8">
         <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl">
-          Welcome, {session.owner.fullName.split(" ")[0]}
+          Welcome, {displayName.split(" ")[0]}
         </h1>
         <p className="mt-2 text-base text-on-surface-variant">
-          Here&apos;s a quick look at your fleet and activity.
+          {isFleet
+            ? "Here's a quick look at your operations and incoming link requests."
+            : "Here's a quick look at your fleet and activity."}
         </p>
       </div>
 
@@ -65,9 +123,13 @@ export default async function HostDashboardPage() {
           accent="primary"
           href="/host/cars"
           icon={<Car className="size-5" />}
-          label="Active Listings"
-          sub="Tap to manage"
-          value={String(activeListings)}
+          label={isFleet ? "Cars Under Management" : "Active Listings"}
+          sub={isFleet ? `Owned + ${managedCarsCount} linked` : "Tap to manage"}
+          value={
+            isFleet
+              ? String(activeListings + managedCarsCount)
+              : String(activeListings)
+          }
         />
         <Tile
           accent="surface"
@@ -86,6 +148,85 @@ export default async function HostDashboardPage() {
           value={peso.format(totalEarnings)}
         />
       </div>
+
+      {/* FLEET — incoming link requests */}
+      {isFleet ? (
+        <section className="mt-10">
+          <div className="mb-4 flex items-baseline justify-between gap-3">
+            <h2 className="font-headline text-xl font-bold text-on-surface">
+              Incoming link requests
+            </h2>
+            <span className="text-xs text-on-surface-variant">
+              {pendingFleetRequests} pending
+            </span>
+          </div>
+          {incomingPendingRequests.length === 0 ? (
+            <div className="rounded-2xl bg-surface-container-low p-8 text-center">
+              <Building2 className="mx-auto mb-3 size-6 text-on-surface-variant" />
+              <p className="text-sm font-semibold text-on-surface">
+                No incoming requests right now
+              </p>
+              <p className="mt-1 text-xs text-on-surface-variant">
+                Independent owners can request to link their cars to your fleet from{" "}
+                <Link className="text-primary hover:underline" href="/fleets">
+                  /fleets
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {incomingPendingRequests.map((req) => (
+                <li
+                  className="flex flex-col gap-3 rounded-xl bg-surface-container-lowest p-4 shadow-[0_6px_20px_rgb(19_27_46_/_0.04)] sm:flex-row sm:items-center sm:justify-between"
+                  key={req.id}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold uppercase tracking-wide text-primary">
+                      {req.listing.year} · plate {req.listing.plateNumber}
+                    </p>
+                    <h3 className="truncate font-headline text-base font-bold text-on-surface">
+                      {req.listing.brand} {req.listing.model}
+                    </h3>
+                    <p className="mt-1 text-xs text-on-surface-variant">
+                      Requested by{" "}
+                      <Link
+                        className="text-primary hover:underline"
+                        href={`/hosts/${req.listing.owner.id}`}
+                      >
+                        {req.listing.owner.fullName}
+                      </Link>{" "}
+                      · {format(req.requestedAt, "MMM d, yyyy")}
+                      {req.managementFeePercent !== null
+                        ? ` · proposed fee ${req.managementFeePercent}%`
+                        : ""}
+                    </p>
+                  </div>
+                  <FleetRequestActions linkId={req.id} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      {/* INDIVIDUAL — outgoing pending requests count */}
+      {!isFleet && activeOutgoingLink > 0 ? (
+        <section className="mt-10 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-semibold flex items-center gap-2">
+            <Building2 className="size-4" />
+            {activeOutgoingLink} pending fleet request
+            {activeOutgoingLink === 1 ? "" : "s"}
+          </p>
+          <p className="mt-1 text-xs">
+            Visit{" "}
+            <Link className="text-primary hover:underline" href="/host/cars">
+              My Cars
+            </Link>
+            {" "}to track or cancel pending fleet-management requests on your listings.
+          </p>
+        </section>
+      ) : null}
     </div>
   );
 }

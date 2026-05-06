@@ -127,6 +127,16 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Booking chat — past trips link | **Show inline link if the customer has 1+ prior COMPLETED booking with the same host.** Link opens a small popover listing past bookings with quick links to each (chats are still per-booking, not merged) | Tier 14 | Discoverability of context without merging threads. Same on the host side ("You've rented to this customer before"). |
 | Booking chat — realtime mechanism | **V1 = client-side polling every 5s with Page Visibility API pause on blur.** V2 = swap the polling hook for Supabase Realtime channel subscription | Tier 14 | Polling is cheap and avoids RLS work in V1. The `useChatMessages(bookingId)` hook is the abstraction boundary — V2 migration changes only the hook, not the chat-panel components. For coordination messages ("running late", "I'm here"), 0-5s latency is invisible in the real world. |
 | Booking chat — message length cap | **1000 characters** | Tier 14 | Matches review comment + bio caps. Plenty for "the address is …" / "key is under the mat" / "running 10 min late". Short enough to keep the chat scannable. Validated server-side in Zod and client-side via `<textarea maxLength>`. |
+| Host kind taxonomy | **Two kinds: `INDIVIDUAL` and `FLEET`**, stored as `Owner.kind: String @default("INDIVIDUAL")`. Fleets get optional `companyName` and `businessRegNumber` fields. Existing seeded + migrated Owner rows default to INDIVIDUAL | Tier 15 | Reuses one Owner table with a discriminator field rather than introducing a separate `FleetOperator` entity. Fleets share most behavior with individuals (login, dashboard, booking management) so the discriminator avoids duplicating ~60% of the existing host code. |
+| Host kind — locked at signup | **Locked at signup; not user-switchable.** Onboarding screen has two big buttons (Independent Car Owner / Registered Car Rental Operator) with helper captions. Admin can flip `Owner.kind` manually if a host requests a change | Tier 15 | Switching kind raises edge cases (does an individual switching to fleet auto-self-list? do existing FleetCarLinks survive an INDIVIDUAL who flips to FLEET?). Locking removes a class of bugs at the cost of a rare admin-mediated flow. |
+| Fleet verification gate | **Same `OwnerStatus.PENDING → admin approves → VERIFIED` flow** as individuals (Tier 2). Admin sees `kind=FLEET` in the verification queue and can request business-registration documents out-of-band before approving | Tier 15 | Reuses existing Tier 2 admin approval queue. No new doc upload paths in V1. The kind label in the queue gives admin context to apply heavier scrutiny if needed. |
+| Fleet-link direction | **Owner-initiates only.** Independent owner browses `/fleets` (a public-ish directory of VERIFIED fleets), picks one, sends a link request for a specific car. Fleet approves or rejects from their host dashboard | Tier 15 | Matches the natural mental model ("I'd like Acme Rentals to manage my car"). Single UI flow. Fleet-initiates (invitations) and bidirectional linking are nice-to-haves that can be added later without migrating the existing data. |
+| Public host name display | **Both names, dual-host format: "Hosted by Joe · managed by Acme Rentals"** on listing cards, listing detail Owner card, and chat panel headers when the car has an ACTIVE FleetCarLink | Tier 15 | Most transparent. Customer sees the legal owner AND the operational manager. Both names link to their respective `/hosts/[id]`. Trust signal: the fleet operator is visible as a registered company; the individual isn't hidden. |
+| Public profile for fleets | **Same `/hosts/[id]` template** as individuals, with `companyName` swapped in for `fullName` in the header when `kind=FLEET`. Bio field renders as "About this company" instead of "About". Listings grid shows owned cars + cars linked to this fleet | Tier 15 | Reuses Tier 11 work. One template, conditional on kind. Fleet operators get a public-facing profile from day one without building a separate page. |
+| Fleet management fee | **Captured at link approval time as `FleetCarLink.managementFeePercent: Float?` (nullable).** No deduction logic ships in Tier 15 or 16 — `Booking.ownerPayout` continues to go 100% to the individual. Real fee deduction defers to Tier 8 (accounting) | Tier 15 | Lets fleets and owners record their fee agreement now without needing accounting infrastructure. When Tier 8 ships, the field is already populated for active links. |
+| Booking authority on fleet-managed cars | **Fleet exclusive once a `FleetCarLink` is `ACTIVE`.** Confirm / Reject / Start / Complete actions only render on the fleet's host dashboard. Individual owner sees the booking on their own `/host/bookings` list as informational (no action buttons). Admin retains exclusive MarkPaid + Cancel | Tier 16 | Cleanest division. The whole point of linking is "I delegated the operational side to the fleet" — letting the individual still act would defeat the purpose. Two-cook conflicts already prevented by the Tier 13 status guard pattern. |
+| Booking chat counterparty on fleet-managed cars | **Customer ↔ fleet operator** is the active chat. The booking's `senderRole` for host-side messages becomes the fleet's role. Individual owner sees the chat history read-only on their `/host/bookings/[id]` (admin-style read-only). One thread per booking — Tier 14 invariant preserved | Tier 16 | Matches "fleet exclusive" booking authority. Avoids 3-way chat (overkill in V1). The individual stays visible to the customer via the dual-host name display, but the operational counterparty is whoever's actually managing. |
+| Availability authority on fleet-managed cars | **Both individual and fleet can edit weekly rules and exceptions.** New `CarAvailabilityException.addedByOwnerId` field tracks who created each exception (audit trail). `requireHost()` server-action gate extends to accept "fleet operator on a car with active link to that fleet" | Tier 16 | Both have legitimate scheduling concerns: individual blocks for personal use, fleet blocks for maintenance / detailing. The union of all blocks applies — no real conflict. Activity log + the new column preserve audit trail. |
 | Host listing create + edit flow | **Approval on first submit, free edit after.** Host submits → `PENDING_APPROVAL` → admin approves → `ACTIVE`. Post-approval edits to price / description / photos / availability do NOT bounce the listing back to PENDING_APPROVAL | Tier 6 | Matches Turo / Airbnb. Vetting lives at onboarding; hosts need frictionless price tuning. Plate stays locked after create to prevent drift. |
 | Pending-host UX | **Dedicated "awaiting approval" locked screen** at `/host/dashboard` — pending hosts can log in but no actions render. SUSPENDED hosts get the same treatment with red-shield copy. Full progress-dashboard onboarding deferred to Tier 7+ | Tier 6 | Simplest that's still professional for the demo. `requireHost()` in server actions is the real trust gate; pages are the visible one. |
 | Host dashboard tiles | **Active listings count → /host/cars · Upcoming bookings count → /host/bookings · Total earnings = sum(ownerPayout) of COMPLETED bookings**. No activity feed | Tier 6 | Matches Turo host home's top-of-fold. Earnings sums straight from `Booking.ownerPayout` — no AccountingEntry needed (still parked for Tier 8). |
@@ -523,6 +533,102 @@ Smaller tier; closes out the customer iteration.
 - [ ] Add a host profile edit page (e.g. `/host/profile`) — currently no host-side profile editor exists. Single-field form for `bio`.
 - [ ] Host UserMenu gets a "Profile" link
 - [ ] `app/actions/host-profile.ts#updateBioAction` — `requireHost()`, Zod-validated, activity log
+
+---
+
+## Tier 15 — Fleet operators + linking (planned)
+
+Splits the Owner role into two kinds: **independent owners** (what we have today — a person who owns a car and manages it themselves) and **fleet operators** (registered car rental companies that can manage bookings on behalf of one or many independent owners). Independent owners can request to link their car to a fleet; once approved, the link is "label-only" in this tier — the public-facing UI shows "managed by X", but bookings still route to whoever the listing's `ownerId` points at. The actual routing flip ships in Tier 16.
+
+The split between Tier 15 and Tier 16 lets you ship a fully working "fleet operators are real entities, fleet directory + linking flow exist, labels render" feature first, validate it with users, then layer on the operational routing.
+
+### 15.1 Schema migration `add_fleet_operators`
+- [ ] `Owner.kind: String @default("INDIVIDUAL")` — `"INDIVIDUAL"` or `"FLEET"`
+- [ ] `Owner.companyName: String?` — only meaningful when `kind=FLEET`
+- [ ] `Owner.businessRegNumber: String?` — only meaningful when `kind=FLEET`
+- [ ] New `FleetCarLink` table: `id`, `listingId`, `fleetId`, `status: String` (`"PENDING"|"ACTIVE"|"INACTIVE"`), `managementFeePercent: Float?`, `requestedAt`, `respondedAt: DateTime?`, `severedAt: DateTime?`. Unique constraint preventing two `ACTIVE` links on the same listing
+- [ ] All existing seeded + migrated Owner rows default to `INDIVIDUAL` (Postgres `DEFAULT 'INDIVIDUAL'` on the column handles backfill)
+
+### 15.2 Onboarding flow — two-button signup
+- [ ] [app/(auth)/signup/page.tsx](app/(auth)/signup/page.tsx) gets a new initial step before the existing form: two large buttons side-by-side
+  - **Independent Car Owner** — "I have my own car and want to rent it out myself"
+  - **Registered Car Rental Operator** — "I run a rental company and want to manage cars on behalf of multiple owners"
+- [ ] Picking either kind reveals the appropriate signup form below. Fleet form has extra required fields: `companyName`, `businessRegNumber`
+- [ ] `signupAction` accepts the kind + fleet fields, writes them on Owner creation
+- [ ] Choice is locked after signup — no kind-switch UI for users (admin can flip via Prisma Studio if a host requests a change)
+
+### 15.3 Fleet directory + public profile
+- [ ] New public route `app/fleets/page.tsx` — lists all `kind=FLEET, status=VERIFIED` operators
+- [ ] Each fleet card shows: company name, bio, count of cars currently managed (owned + linked), member-since
+- [ ] `/hosts/[id]` (Tier 11) extended: when `kind=FLEET`, header swaps `fullName` for `companyName`, bio header reads "About this company", and the listings grid shows owned + linked cars (any car with an ACTIVE FleetCarLink to this fleet, regardless of who actually owns it)
+- [ ] Existing `/hosts/[id]` for `kind=INDIVIDUAL` is unchanged
+
+### 15.4 Owner-initiated link request
+- [ ] On `/host/cars/[id]/edit` for cars owned by an INDIVIDUAL: new "Manage with a fleet operator" section
+- [ ] If the car has no active link: shows a "Pick a fleet" picker that lists VERIFIED fleets. Submitting writes a new `FleetCarLink` row with `status=PENDING`
+- [ ] If the car has a PENDING link: shows the pending state with "Cancel request" action
+- [ ] If the car has an ACTIVE link: shows "Currently managed by [Fleet]" with a "Sever link" action (writes `status=INACTIVE`, sets `severedAt`)
+- [ ] Server actions: `app/actions/fleet-links.ts#requestLinkAction`, `cancelLinkRequestAction`, `severLinkAction`. All `requireHost()`-scoped + ownership-checked
+
+### 15.5 Fleet host dashboard updates
+- [ ] When `kind=FLEET`: dashboard tiles change to "Owned cars" + "Linked cars (managed)" + "Total earnings"
+- [ ] New section on the fleet dashboard: "Pending link requests" — list of `FleetCarLink` rows with `status=PENDING` for this fleet. Each row shows the requesting owner's name + the car. **Approve** / **Reject** buttons
+- [ ] Approve → `status=ACTIVE`, sets `respondedAt`, writes activity log entry
+- [ ] Reject → `status=INACTIVE`, sets `respondedAt`, writes activity log entry
+- [ ] `/host/cars` page extended for fleets: shows owned + actively-linked cars in one list, with a "managed by you" label on linked rows
+
+### 15.6 Public-facing labels — "managed by X"
+- [ ] Update `<ListingCard>`: when the car has an `ACTIVE FleetCarLink`, header reads *"Hosted by Joe · managed by Acme Rentals"*. Both names link to their respective `/hosts/[id]`.
+- [ ] Update [app/listings/[id]/page.tsx](app/listings/%5Bid%5D/page.tsx) Owner card: dual display, both names linked
+- [ ] Booking chat panel header (Tier 14): when applicable, header shows "managed by X" alongside the existing host link
+- [ ] Server query helpers extended to `include` the active link relation when fetching listings + bookings
+
+### 15.7 Landing page CTAs for fleet operators
+- [ ] [components/marketing/landing-page.tsx](components/marketing/landing-page.tsx) hero gets a third smaller pill below the existing two big CTAs: *"Run a fleet? See operator program →"* linking to `#fleet-operator-journey`
+- [ ] Header nav adds a "For Operators" text link (next to "Browse Cars" / "How It Works") pointing at `#fleet-operator-journey`
+- [ ] New section in the landing page body, mirroring the structure of `#owner-journey` but for fleet operators: positioning + value props + step-by-step ("Sign up as a fleet → Get verified → Connect with owners → Manage their bookings on one dashboard")
+- [ ] Footer adds a "For Operators" link in the existing column
+
+### 15.8 Activity log + audit
+- [ ] New action codes: `FLEET_LINK_REQUESTED` (owner sends request), `FLEET_LINK_APPROVED` (fleet approves), `FLEET_LINK_REJECTED`, `FLEET_LINK_SEVERED` (either side ends an active link)
+- [ ] All entries include both the owner and fleet email/name in the description for traceability
+
+### Out of scope for Tier 15 (deferred to Tier 16)
+- Booking authority routing (fleet still doesn't act on bookings — individual owner does, even on linked cars)
+- Chat counterparty switch (chat still goes to individual)
+- Availability authority (only individual edits availability — fleet has no write access yet)
+- Money-split deduction (the `managementFeePercent` field is captured but not yet applied)
+
+---
+
+## Tier 16 — Fleet routing + parallel availability (planned, depends on Tier 15)
+
+Once Tier 15 ships and fleet operators are real entities with link relationships in place, Tier 16 makes the link operational: bookings on fleet-managed cars actually route to the fleet, the chat counterparty switches, and the availability surface grants the fleet write access alongside the individual.
+
+### 16.1 Booking authority routing
+- [ ] Update `requireOwnBooking()` helpers in `app/actions/host-bookings.ts` to accept "fleet operator on a car with active link" alongside the existing "owner of the booking's car" check
+- [ ] Mirror update in admin-bookings notification logic (when an admin needs context, the fleet is the relevant party for fleet-managed bookings)
+- [ ] Render Confirm/Reject/Start/Complete actions on `/host/bookings/[id]` for the fleet operator on linked-car bookings; suppress them for the individual owner
+- [ ] Booking lists at `/host/bookings`: fleets see linked-car bookings as actionable; individuals see their managed bookings as informational ("managed by [Fleet] — no action needed")
+
+### 16.2 Chat counterparty switch
+- [ ] `app/actions/messages.ts#sendMessageAction`: extend the auth resolver — when the booking has an active fleet link, the fleet operator becomes a valid sender (replacing the individual)
+- [ ] Individual owner can poll/read the chat history (admin-style read-only) on their `/host/bookings/[id]`
+- [ ] System messages still write at lifecycle transitions; the "by host" wording becomes "by [Fleet]" when fleet acts
+
+### 16.3 Availability authority
+- [ ] `CarAvailabilityException.addedByOwnerId: String?` — tracks who created each exception (audit trail)
+- [ ] Server actions for availability rules + exceptions extended: previously `requireHost()` checked `ownerId` match; now also accepts "fleet operator on a car with active link to that fleet"
+- [ ] UI: both individual host and fleet host see the same availability editor on `/host/cars/[id]/edit`. Each exception row shows who created it ("blocked by Joe" or "blocked by Acme Rentals — maintenance")
+
+### 16.4 Activity log
+- [ ] New action codes for fleet-triggered transitions: `FLEET_BOOKING_CONFIRMED`, `FLEET_BOOKING_STARTED`, `FLEET_BOOKING_COMPLETED`, `FLEET_BOOKING_REJECTED`. Mirror the `HOST_*` pattern from Tier 13.
+- [ ] System messages in chat use "by [Fleet]" for these transitions
+
+### Out of scope for Tier 16 (deferred further)
+- Money-split deduction logic (`Booking.ownerPayout` still goes 100% to individual; fleet's management fee is recorded but not deducted) — defers to Tier 8 (accounting)
+- Fleet-initiated link invitations (only owner-initiates in V1) — possible future polish
+- Bidirectional kind switching (admin still mediates rare cases manually) — possible future polish
 
 ---
 
