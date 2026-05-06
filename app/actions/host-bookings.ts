@@ -7,6 +7,10 @@ import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, OwnerStatus } from "@/types";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
 import { writeBookingSystemMessage } from "@/lib/booking-chat-server";
+import {
+  resolveBookingAuthority,
+  type BookingAuthority,
+} from "@/lib/host-booking-authority";
 import { format } from "date-fns";
 
 export type HostBookingActionState =
@@ -33,18 +37,61 @@ async function requireHost() {
   return owner;
 }
 
-type BookingRow = NonNullable<Awaited<ReturnType<typeof db.booking.findUnique>>>;
+type ActorContext = {
+  actorKind: "owner-direct" | "fleet";
+  actorLabel: string; // "Host" or "Fleet" — used in activity-log + system-msg copy
+  actorDisplayName: string; // e.g. "Joe" or "Acme Rentals" — used for system messages
+  actorEmail: string;
+  booking: BookingAuthority extends infer A
+    ? A extends { booking: infer B }
+      ? B
+      : never
+    : never;
+};
 
-async function requireOwnBooking(
+// Resolves the authority and rejects callers without action rights.
+// "owner-managed" callers (individual owner on a fleet-managed car) are
+// rejected — the fleet has exclusive operational control once a link is
+// ACTIVE.
+async function requireBookingActor(
   bookingId: string,
-  ownerId: string,
-): Promise<{ error: string } | { booking: BookingRow }> {
-  const booking = await db.booking.findUnique({ where: { id: bookingId } });
-  if (!booking) return { error: "Booking not found." };
-  if (booking.ownerId !== ownerId) {
+  owner: { id: string; email: string; fullName: string; companyName: string | null; kind: string },
+): Promise<{ error: string } | ActorContext> {
+  const authority = await resolveBookingAuthority(bookingId, owner.id);
+  if (authority.kind === "none") {
     return { error: "You cannot act on bookings you don't own." };
   }
-  return { booking };
+  if (authority.kind === "owner-managed") {
+    return {
+      error: `This booking is managed by ${authority.fleet.displayName}. They control confirm / start / complete actions.`,
+    };
+  }
+
+  if (authority.kind === "fleet") {
+    return {
+      actorKind: "fleet",
+      actorLabel: "Fleet",
+      actorDisplayName: owner.companyName ?? owner.fullName,
+      actorEmail: owner.email,
+      booking: authority.booking,
+    };
+  }
+
+  // owner-direct
+  return {
+    actorKind: "owner-direct",
+    actorLabel: "Host",
+    actorDisplayName: owner.fullName,
+    actorEmail: owner.email,
+    booking: authority.booking,
+  };
+}
+
+function activityActionFor(
+  actor: ActorContext,
+  verb: "CONFIRMED" | "STARTED" | "COMPLETED" | "REJECTED",
+): string {
+  return `${actor.actorKind === "fleet" ? "FLEET" : "HOST"}_BOOKING_${verb}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -60,7 +107,7 @@ export async function hostConfirmBookingAction(
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   if (!bookingId) return { error: "Missing booking id." };
 
-  const scope = await requireOwnBooking(bookingId, host.id);
+  const scope = await requireBookingActor(bookingId, host);
   if ("error" in scope) return { error: scope.error };
   const booking = scope.booking;
 
@@ -77,16 +124,18 @@ export async function hostConfirmBookingAction(
 
   // Tier 14: a CONFIRMED booking opens the chat. Write the welcome
   // system message so both parties land into a populated thread, not a
-  // blank one.
+  // blank one. Tier 16: actor wording switches to "fleet" when the
+  // booking is fleet-managed.
+  const byLabel = scope.actorKind === "fleet" ? scope.actorDisplayName : "host";
   await writeBookingSystemMessage(
     bookingId,
-    "Booking confirmed by host. Use this chat to coordinate pickup, drop-off, and trip needs.",
+    `Booking confirmed by ${byLabel}. Use this chat to coordinate pickup, drop-off, and trip needs.`,
   );
 
   await db.activityLogEntry.create({
     data: {
-      action: "HOST_BOOKING_CONFIRMED",
-      description: `Host ${host.email} confirmed booking ${booking.referenceNumber} for ${booking.customerName}`,
+      action: activityActionFor(scope, "CONFIRMED"),
+      description: `${scope.actorLabel} ${scope.actorEmail} confirmed booking ${booking.referenceNumber} for ${booking.customerName}`,
       type: "booking",
     },
   });
@@ -116,7 +165,7 @@ export async function hostStartRentalAction(
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   if (!bookingId) return { error: "Missing booking id." };
 
-  const scope = await requireOwnBooking(bookingId, host.id);
+  const scope = await requireBookingActor(bookingId, host);
   if ("error" in scope) return { error: scope.error };
   const booking = scope.booking;
 
@@ -135,15 +184,16 @@ export async function hostStartRentalAction(
     },
   });
 
+  const byLabel = scope.actorKind === "fleet" ? scope.actorDisplayName : "host";
   await writeBookingSystemMessage(
     bookingId,
-    `Trip started by host · ${format(startedAt, "MMM d, h:mm a")}`,
+    `Trip started by ${byLabel} · ${format(startedAt, "MMM d, h:mm a")}`,
   );
 
   await db.activityLogEntry.create({
     data: {
-      action: "HOST_BOOKING_STARTED",
-      description: `Host ${host.email} started rental for booking ${booking.referenceNumber} (${booking.carName})`,
+      action: activityActionFor(scope, "STARTED"),
+      description: `${scope.actorLabel} ${scope.actorEmail} started rental for booking ${booking.referenceNumber} (${booking.carName})`,
       type: "booking",
     },
   });
@@ -166,7 +216,7 @@ export async function hostCompleteRentalAction(
   const bookingId = String(formData.get("bookingId") ?? "").trim();
   if (!bookingId) return { error: "Missing booking id." };
 
-  const scope = await requireOwnBooking(bookingId, host.id);
+  const scope = await requireBookingActor(bookingId, host);
   if ("error" in scope) return { error: scope.error };
   const booking = scope.booking;
 
@@ -185,15 +235,16 @@ export async function hostCompleteRentalAction(
     },
   });
 
+  const byLabel = scope.actorKind === "fleet" ? scope.actorDisplayName : "host";
   await writeBookingSystemMessage(
     bookingId,
-    `Trip completed by host · ${format(completedAt, "MMM d, h:mm a")}. Chat closes in 48h.`,
+    `Trip completed by ${byLabel} · ${format(completedAt, "MMM d, h:mm a")}. Chat closes in 48h.`,
   );
 
   await db.activityLogEntry.create({
     data: {
-      action: "HOST_BOOKING_COMPLETED",
-      description: `Host ${host.email} completed rental for booking ${booking.referenceNumber} (${booking.carName})`,
+      action: activityActionFor(scope, "COMPLETED"),
+      description: `${scope.actorLabel} ${scope.actorEmail} completed rental for booking ${booking.referenceNumber} (${booking.carName})`,
       type: "booking",
     },
   });
@@ -250,7 +301,7 @@ export async function hostRejectBookingAction(
     };
   }
 
-  const scope = await requireOwnBooking(bookingId, host.id);
+  const scope = await requireBookingActor(bookingId, host);
   if ("error" in scope) return { error: scope.error };
   const booking = scope.booking;
 
@@ -267,14 +318,14 @@ export async function hostRejectBookingAction(
       cancellationReason: parsed.data.reason,
       cancellationNote: parsed.data.note?.trim() || null,
       cancelledAt: new Date(),
-      cancelledBy: host.email,
+      cancelledBy: scope.actorEmail,
     },
   });
 
   await db.activityLogEntry.create({
     data: {
-      action: "HOST_BOOKING_REJECTED",
-      description: `Host ${host.email} rejected booking ${booking.referenceNumber} (${parsed.data.reason})`,
+      action: activityActionFor(scope, "REJECTED"),
+      description: `${scope.actorLabel} ${scope.actorEmail} rejected booking ${booking.referenceNumber} (${parsed.data.reason})`,
       type: "booking",
     },
   });

@@ -1823,6 +1823,127 @@ Splits the Owner role into two kinds: independent owners (existing behavior) and
 
 ---
 
+## Tier 16 — Fleet routing + parallel availability
+
+Bookings on cars under an ACTIVE FleetCarLink now route to the fleet — they own confirm / start / complete / reject and the chat counterparty switches to the fleet. The individual owner sees the booking informational and the chat read-only. Availability rules + exceptions are editable by both parties (owner and fleet); each exception records who created it and the row renders "blocked by [name]".
+
+### Prerequisites
+
+- Four accounts:
+  - **Individual host** — VERIFIED, owns at least two cars (Car A, Car B)
+  - **Fleet operator** — VERIFIED, kind=FLEET (set via signup → Registered Car Rental Operator)
+  - **Customer** — for booking flows
+  - **Admin** — for cancel / mark-paid actions
+- Tier 15 link in place: Car A is linked to the Fleet operator with status=ACTIVE. Car B is unlinked (still owner-managed).
+- One PENDING booking on Car A from the customer. One PENDING booking on Car B from the customer.
+
+### T16-A — Booking authority routing (fleet acts on linked car)
+
+**Setup**
+1. Log in as the Fleet operator.
+
+**Fleet sees linked-car bookings on /host/bookings**
+2. Visit `/host/bookings`. The PENDING booking on Car A appears in the list (alongside any of the fleet's directly-owned car bookings, if any). Search and status filters all work as before.
+3. The Car B booking is NOT in the list (no link, fleet has no authority).
+
+**Fleet can confirm / start / complete on linked car**
+4. Click the Car A booking → `/host/bookings/[id]`.
+5. Confirm/Reject buttons render at the top. Click **Accept Booking**. Status flips to CONFIRMED. Activity log entry written with action `FLEET_BOOKING_CONFIRMED`.
+6. The system message at the top of the chat reads "Booking confirmed by [Fleet's company name]." (not "by host").
+7. Click **Start Rental** → status → ONGOING. Activity log: `FLEET_BOOKING_STARTED`. System message: "Trip started by [Fleet] · [date]".
+8. Click **Complete Rental** → status → COMPLETED. Activity log: `FLEET_BOOKING_COMPLETED`. System message: "Trip completed by [Fleet] · [date]. Chat closes in 48h."
+
+**Fleet can reject a pending booking on a linked car**
+9. With a fresh PENDING booking on Car A, click **Reject**. Pick a reason (e.g. "vehicle_unavailable"). Click **Reject Booking**.
+10. Status → REJECTED. Activity log: `FLEET_BOOKING_REJECTED`.
+
+### T16-B — Individual owner sees fleet-managed booking informationally
+
+**Setup**
+1. With a fresh PENDING booking on Car A (re-create one as the customer if needed), log in as the Individual host.
+
+**No action buttons on managed bookings**
+2. Visit `/host/bookings`. Car A's booking appears in the list with a "Managed by [Fleet name]" amber pill under the car name.
+3. Click into `/host/bookings/[id]`.
+4. The action region shows a dashed-border "Managed by [Fleet name]" panel — no Confirm/Reject/Start/Complete buttons render.
+
+**Forge attempt is rejected at the action layer**
+5. *(Forge.)* As the individual, manually call `hostConfirmBookingAction` against Car A's booking. Server rejects: *"This booking is managed by [Fleet]. They control confirm / start / complete actions."*
+
+**Individual still sees own (unmanaged) bookings actionably**
+6. Visit Car B's booking detail. Confirm/Reject buttons render (no fleet link → owner-direct authority).
+
+### T16-C — Chat counterparty switch
+
+**Setup**
+1. With Car A in CONFIRMED state (from T16-A step 5), open three browser windows: Customer, Individual host, Fleet operator. Each visits the booking detail.
+
+**Fleet writes; individual is read-only**
+2. As the Fleet, send a message: "Hi, I'll meet you at pickup." It posts. Posts as `senderRole=host`.
+3. As the Individual, the chat panel renders with a "Read-only" amber pill in the header and copy: "[Fleet] corresponds with the renter on your behalf. You can read the thread but not send messages." No textarea.
+4. As the Customer, the message appears from "host" side. Customer types a reply → it posts.
+5. As the Individual, refresh the page; both messages now visible (read-only).
+
+**Forge: individual cannot send to a fleet-managed booking**
+6. *(Forge.)* As the Individual, manually call `sendMessageAction(bookingId, "test")` for Car A's booking. Server rejects: *"You can only message bookings you're part of."* (the resolver intentionally rejects the individual when an active fleet link delegates host authority).
+
+**Unmanaged bookings still let the individual write**
+7. With Car B's booking now CONFIRMED, the Individual host opens its detail page. The chat panel renders normally (no read-only pill, textarea visible). Send a message → it posts as senderRole=host.
+
+### T16-D — Availability authority extends to fleet
+
+**Setup**
+1. As the Fleet operator, visit `/host/cars`. Car A appears in the list with an amber "Managed" badge in the corner and "Owned by [Individual's name]" subtitle.
+
+**Fleet edits weekly rules on a linked car**
+2. Click Car A → `/host/cars/[id]/edit`. The page header reads "Manage [Brand] [Model]" (not "Edit"). A dashed banner explains "viewing as a fleet operator on an active management link". Photos, OR/CR, Edit Listing form, and Fleet-Link sections are HIDDEN. Only "Weekly Availability" + "Date-Specific Exceptions" sections render.
+3. Toggle Tuesday off. Click **Save Schedule**. Activity log entry: `LISTING_AVAILABILITY_UPDATED · Fleet [email] ([Company]) updated weekly availability for listing [Car]`.
+
+**Fleet adds a blocked exception**
+4. Add an exception: pick a future date, choose "Block this date", reason "Maintenance". Click **Add**.
+5. The new row appears in the list with text: "Blocked · Maintenance · blocked by [Company name]".
+6. Activity log: `LISTING_EXCEPTION_ADDED · Fleet [email] ([Company]) added blocked exception on [date] for listing [Car]`.
+
+**Individual + fleet authorship coexists; each row shows its author**
+7. As the Individual host, visit `/host/cars/[CarA]/edit`. Add another blocked exception for a different date with reason "Personal trip". The row shows "blocked by [Individual's full name]".
+8. Re-load — both exceptions visible to both parties, each labeled with its author.
+
+**Either party can delete any exception**
+9. As the Fleet, delete the Individual's "Personal trip" exception (click trash icon). Confirm it's removed. Activity log: `LISTING_EXCEPTION_REMOVED · Fleet [email] ...`.
+10. As the Individual, delete the Fleet's "Maintenance" exception. Activity log: `LISTING_EXCEPTION_REMOVED · Host [email] ...`.
+
+**Forge: non-owner non-fleet cannot edit availability**
+11. *(Forge.)* Sign in as a third VERIFIED host (no relation to Car A). Manually call `addHostAvailabilityExceptionAction` against Car A's listing id. Server rejects: *"You cannot modify availability for a listing you don't manage."*
+
+### T16-E — Page guards on edit + booking pages
+
+**Fleet 404s on a non-linked car's edit page**
+1. As the Fleet, visit `/host/cars/[CarB-id]/edit` (no link to fleet). The page returns 404.
+
+**Fleet 404s on a non-linked booking detail**
+2. As the Fleet, visit `/host/bookings/[CarB-booking-id]` directly. Returns 404.
+
+**Individual still owns their direct car's edit page fully**
+3. As the Individual, visit `/host/cars/[CarB-id]/edit`. All sections render (Edit Listing form, photos, OR/CR, availability, fleet-link section).
+
+### T16-F — Activity log + audit trail completeness
+
+After running T16-A through T16-D, in Prisma Studio's `ActivityLogEntry` table, confirm at least one row exists for each of these new Tier 16 action codes:
+1. `FLEET_BOOKING_CONFIRMED`
+2. `FLEET_BOOKING_STARTED`
+3. `FLEET_BOOKING_COMPLETED`
+4. `FLEET_BOOKING_REJECTED`
+
+And at least one row each where `description` starts with `Fleet [email] ([Company])` (rather than `Host [email]`):
+5. `LISTING_AVAILABILITY_UPDATED`
+6. `LISTING_EXCEPTION_ADDED`
+7. `LISTING_EXCEPTION_REMOVED`
+
+In `CarAvailabilityException`:
+8. New rows have `addedByOwnerId` populated (matching the actor that created them). Old rows from prior tiers still have null — UI tolerates that with no "added by" suffix.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

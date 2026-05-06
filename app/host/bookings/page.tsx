@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format } from "date-fns";
-import { CheckCircle2, ClipboardList, Clock, Eye, Search, CalendarClock } from "lucide-react";
+import {
+  Building2,
+  CheckCircle2,
+  ClipboardList,
+  Clock,
+  Eye,
+  Search,
+  CalendarClock,
+} from "lucide-react";
 import type { Prisma } from "@prisma/client";
 
 import { db } from "@/lib/db";
@@ -44,17 +52,39 @@ export default async function HostBookingsPage({
   if (session.kind !== "verified") redirect("/host/dashboard");
 
   const ownerId = session.owner.id;
+  const isFleet = session.owner.kind === "FLEET";
   const { search, status } = await searchParams;
   const trimmedSearch = search?.trim() ?? "";
   const activeStatus = STATUS_FILTERS.find((s) => s.key === status);
 
-  const where: Prisma.BookingWhereInput = { ownerId };
+  // Tier 16: a fleet operator's "My Bookings" includes bookings on cars
+  // linked to their fleet — that's where they actually have action
+  // authority. Individuals see only their owned-car bookings; rows that
+  // are fleet-managed are flagged informational below.
+  const scopeFilter: Prisma.BookingWhereInput = isFleet
+    ? {
+        OR: [
+          { ownerId },
+          {
+            carListing: {
+              fleetLinks: { some: { fleetId: ownerId, status: "ACTIVE" } },
+            },
+          },
+        ],
+      }
+    : { ownerId };
+
+  const where: Prisma.BookingWhereInput = { ...scopeFilter };
   if (trimmedSearch) {
-    where.OR = [
-      { referenceNumber: { contains: trimmedSearch, mode: "insensitive" } },
-      { customerName: { contains: trimmedSearch, mode: "insensitive" } },
-      { carName: { contains: trimmedSearch, mode: "insensitive" } },
-      { plateNumber: { contains: trimmedSearch, mode: "insensitive" } },
+    where.AND = [
+      {
+        OR: [
+          { referenceNumber: { contains: trimmedSearch, mode: "insensitive" } },
+          { customerName: { contains: trimmedSearch, mode: "insensitive" } },
+          { carName: { contains: trimmedSearch, mode: "insensitive" } },
+          { plateNumber: { contains: trimmedSearch, mode: "insensitive" } },
+        ],
+      },
     ];
   }
   if (activeStatus) {
@@ -62,8 +92,46 @@ export default async function HostBookingsPage({
   }
 
   const [allBookings, filteredBookings] = await Promise.all([
-    db.booking.findMany({ where: { ownerId }, orderBy: { createdAt: "desc" } }),
-    db.booking.findMany({ where, orderBy: { createdAt: "desc" } }),
+    db.booking.findMany({
+      where: scopeFilter,
+      orderBy: { createdAt: "desc" },
+      include: {
+        carListing: {
+          select: {
+            fleetLinks: {
+              where: { status: "ACTIVE" },
+              select: {
+                fleetId: true,
+                fleet: {
+                  select: { id: true, companyName: true, fullName: true },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    }),
+    db.booking.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        carListing: {
+          select: {
+            fleetLinks: {
+              where: { status: "ACTIVE" },
+              select: {
+                fleetId: true,
+                fleet: {
+                  select: { id: true, companyName: true, fullName: true },
+                },
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    }),
   ]);
 
   const totalBookings = allBookings.length;
@@ -177,7 +245,18 @@ export default async function HostBookingsPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredBookings.map((booking, idx) => (
+                {filteredBookings.map((booking, idx) => {
+                  const link = booking.carListing.fleetLinks[0] ?? null;
+                  const fleetName = link
+                    ? link.fleet.companyName ?? link.fleet.fullName
+                    : null;
+                  // For an individual viewer, a fleet-linked row is
+                  // informational. For a fleet viewer, it's actionable —
+                  // their card. Rows where the fleet is the booking's
+                  // direct owner don't reach this branch (link is null).
+                  const isManagedForViewer =
+                    !isFleet && link !== null && link.fleetId !== ownerId;
+                  return (
                   <tr
                     className={cn(
                       "align-middle transition",
@@ -198,6 +277,12 @@ export default async function HostBookingsPage({
                       <p className="font-mono text-[11px] uppercase tracking-wider text-on-surface-variant">
                         {booking.plateNumber}
                       </p>
+                      {isManagedForViewer && fleetName ? (
+                        <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                          <Building2 className="size-3" />
+                          Managed by {fleetName}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="py-5 pr-4 text-xs text-on-surface-variant">
                       {format(booking.pickupDate, "MMM d")} →{" "}
@@ -226,7 +311,8 @@ export default async function HostBookingsPage({
                       </Link>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

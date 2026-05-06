@@ -8,6 +8,8 @@ import { DayOfWeek, ListingStatus, OwnerStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getListingDocumentSignedUrl } from "@/lib/listing-documents";
+import { resolveListingAuthority } from "@/lib/host-listing-authority";
+import { Building2 } from "lucide-react";
 import { EditHostListingForm } from "./edit-host-listing-form";
 import { HostListingPhotoGallery } from "./host-listing-photo-gallery";
 import { HostListingOrCrForm } from "./host-listing-or-cr-form";
@@ -40,27 +42,67 @@ export default async function HostEditListingPage({
     include: {
       availabilityRules: true,
       exceptions: { orderBy: { date: "asc" } },
+      owner: { select: { id: true, fullName: true, kind: true, companyName: true } },
     },
   });
+  if (!listing) notFound();
 
-  // 404 covers both "listing doesn't exist" and "belongs to another host".
-  if (!listing || listing.ownerId !== session.owner.id) {
-    notFound();
-  }
+  // Tier 16: a fleet operator with an ACTIVE link on this car can also
+  // open the edit page (read-only on details, editable on availability).
+  // Anyone else 404s.
+  const authority = await resolveListingAuthority(id, session.owner.id);
+  if (authority.kind === "none") notFound();
+  const isFleetViewer = authority.kind === "fleet";
+  const ownerName =
+    listing.owner.kind === "FLEET" && listing.owner.companyName
+      ? listing.owner.companyName
+      : listing.owner.fullName;
 
-  const orCrSignedUrl = await getListingDocumentSignedUrl(listing.orCrDocumentUrl);
+  // Build a map of "who created each exception" so the form can render
+  // "blocked by Joe" / "blocked by Acme Rentals". Tier 7-era rows have
+  // null and render without a byline.
+  const authorIds = Array.from(
+    new Set(
+      listing.exceptions
+        .map((ex) => ex.addedByOwnerId)
+        .filter((v): v is string => v !== null),
+    ),
+  );
+  const authorRows =
+    authorIds.length > 0
+      ? await db.owner.findMany({
+          where: { id: { in: authorIds } },
+          select: { id: true, fullName: true, kind: true, companyName: true },
+        })
+      : [];
+  const authorById = new Map(
+    authorRows.map((a) => [
+      a.id,
+      a.kind === "FLEET" && a.companyName ? a.companyName : a.fullName,
+    ]),
+  );
 
-  const photos = listing.photos.map((path) => ({
-    path,
-    url: resolveListingPhotoUrl(path),
-  }));
+  // The owner-only sections (details edit, photos, OR/CR) only render
+  // when the current viewer is the literal listing owner. Fleet viewers
+  // skip the document fetch + photo path resolution entirely.
+  const orCrSignedUrl = isFleetViewer
+    ? null
+    : await getListingDocumentSignedUrl(listing.orCrDocumentUrl);
+
+  const photos = isFleetViewer
+    ? []
+    : listing.photos.map((path) => ({
+        path,
+        url: resolveListingPhotoUrl(path),
+      }));
 
   const rulesByDay = new Map(listing.availabilityRules.map((r) => [r.dayOfWeek, r]));
 
-  // Tier 15: only INDIVIDUAL hosts see the fleet-link section. Fleets viewing
-  // their own owned cars don't need it (they're the destination, not the
-  // requester).
-  const showFleetLinkSection = session.owner.kind === "INDIVIDUAL";
+  // Tier 15: only INDIVIDUAL hosts on their OWN cars see the fleet-link
+  // section. Fleets viewing their own owned cars or any linked car
+  // don't need it (they're the destination, not the requester).
+  const showFleetLinkSection =
+    !isFleetViewer && session.owner.kind === "INDIVIDUAL";
 
   // Load any open or active link for this car + the directory of verified
   // fleets (only if we're going to render the section). Inline the parallel
@@ -113,7 +155,7 @@ export default async function HostEditListingPage({
       <div>
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl">
-            Edit {listing.brand} {listing.model}
+            {isFleetViewer ? "Manage" : "Edit"} {listing.brand} {listing.model}
           </h1>
           <span
             className={cn(
@@ -126,38 +168,57 @@ export default async function HostEditListingPage({
         </div>
         <p className="mt-2 text-base text-on-surface-variant">
           Plate: <span className="font-mono">{listing.plateNumber}</span> ·{" "}
-          {listing.status === ListingStatus.PENDING_APPROVAL
-            ? "Waiting on admin approval. Keep filling out photos, OR/CR, and availability."
-            : "Changes save instantly and do not require re-approval."}
+          {isFleetViewer
+            ? `Owned by ${ownerName}. You can update weekly availability and exceptions.`
+            : listing.status === ListingStatus.PENDING_APPROVAL
+              ? "Waiting on admin approval. Keep filling out photos, OR/CR, and availability."
+              : "Changes save instantly and do not require re-approval."}
         </p>
       </div>
 
-      <EditHostListingForm
-        listing={{
-          id: listing.id,
-          brand: listing.brand,
-          model: listing.model,
-          year: listing.year,
-          color: listing.color,
-          transmission: listing.transmission,
-          fuelType: listing.fuelType,
-          vehicleType: listing.vehicleType,
-          features: listing.features,
-          seatingCapacity: listing.seatingCapacity,
-          location: listing.location,
-          dailyPrice: listing.dailyPrice,
-          description: listing.description,
-          plateNumber: listing.plateNumber,
-        }}
-      />
+      {isFleetViewer ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface-container-low p-4 text-sm text-on-surface-variant flex items-start gap-3">
+          <Building2 className="size-4 mt-0.5 text-primary" />
+          <p>
+            You&apos;re viewing this listing as a fleet operator on an active
+            management link. Listing details, photos, and OR/CR are managed by
+            the owner. Availability is shared.
+          </p>
+        </div>
+      ) : null}
 
-      <HostListingPhotoGallery listingId={listing.id} photos={photos} />
+      {!isFleetViewer ? (
+        <EditHostListingForm
+          listing={{
+            id: listing.id,
+            brand: listing.brand,
+            model: listing.model,
+            year: listing.year,
+            color: listing.color,
+            transmission: listing.transmission,
+            fuelType: listing.fuelType,
+            vehicleType: listing.vehicleType,
+            features: listing.features,
+            seatingCapacity: listing.seatingCapacity,
+            location: listing.location,
+            dailyPrice: listing.dailyPrice,
+            description: listing.description,
+            plateNumber: listing.plateNumber,
+          }}
+        />
+      ) : null}
 
-      <HostListingOrCrForm
-        listingId={listing.id}
-        orCrPath={listing.orCrDocumentUrl}
-        signedUrl={orCrSignedUrl}
-      />
+      {!isFleetViewer ? (
+        <HostListingPhotoGallery listingId={listing.id} photos={photos} />
+      ) : null}
+
+      {!isFleetViewer ? (
+        <HostListingOrCrForm
+          listingId={listing.id}
+          orCrPath={listing.orCrDocumentUrl}
+          signedUrl={orCrSignedUrl}
+        />
+      ) : null}
 
       <HostAvailabilityRulesForm
         listingId={listing.id}
@@ -176,6 +237,10 @@ export default async function HostEditListingPage({
           date: ex.date.toISOString().slice(0, 10),
           isAvailable: ex.isAvailable,
           reason: ex.reason,
+          addedByName:
+            ex.addedByOwnerId !== null
+              ? authorById.get(ex.addedByOwnerId) ?? null
+              : null,
         }))}
       />
 

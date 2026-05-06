@@ -22,6 +22,8 @@ This plan is the single source of truth for remaining work. The *Current state* 
 
 *Updated: 2026-04-24 (Tier 7 complete locally — admin dashboard on real Prisma aggregates; PlatformSettings singleton + wired /settings with Zod + activity log; commission rate lock-in per booking; admin /customers list + detail; admin /calendar wired to real bookings + exceptions; sidebar gets Calendar + Customers nav; login email preserved on error; login tab mismatch rejected with clear copy; admin Topnav UserMenu has Dashboard/Settings/Browse links; multiple cosmetic fixes (owner dropdown width + label pattern, numeric placeholders, exception-status label, /owners responsive breakpoint). Prod runs through Tier 6 (deployed at start of Tier 7). Tier 7 commit pending on `tier-7-complete`, deploys at the start of Tier 8.)*
 
+*Updated: 2026-05-06 (Tier 16 complete locally — fleet routing + parallel availability. New `lib/host-booking-authority.ts` + `lib/host-listing-authority.ts` resolvers centralize "who can act on this booking/listing" for both action layer + page guards. Booking authority routes Confirm/Reject/Start/Complete to the fleet on cars with an ACTIVE FleetCarLink; the individual owner sees an informational "Managed by [Fleet]" panel and a read-only chat (`viewerRole="host-readonly"` added). New activity codes `FLEET_BOOKING_*` mirror the Tier 13 `HOST_*` pattern; system messages now read "by [Fleet name]" when fleet acts. Availability rules + exceptions are editable by both individual + fleet; new `CarAvailabilityException.addedByOwnerId` audit column drives a "blocked by [name]" row hint. `/host/cars` and `/host/bookings` now include linked-car rows for fleet operators; `/host/cars/[id]/edit` page guard accepts fleet on active link and hides owner-only sections (details edit, photos, OR/CR, fleet-link request). MANUAL-TESTING.md gets Tier 16 sections A–F. Deferred to Tier 8: money-split deduction logic on `Booking.ownerPayout`. Tier 16 commit pending on `tier-16-complete`, deploys at the start of Tier 17.)*
+
 ### Tier 1 — 100% complete locally, 0% deployed to prod
 
 **Local setup — done:**
@@ -606,24 +608,24 @@ The split between Tier 15 and Tier 16 lets you ship a fully working "fleet opera
 Once Tier 15 ships and fleet operators are real entities with link relationships in place, Tier 16 makes the link operational: bookings on fleet-managed cars actually route to the fleet, the chat counterparty switches, and the availability surface grants the fleet write access alongside the individual.
 
 ### 16.1 Booking authority routing
-- [ ] Update `requireOwnBooking()` helpers in `app/actions/host-bookings.ts` to accept "fleet operator on a car with active link" alongside the existing "owner of the booking's car" check
-- [ ] Mirror update in admin-bookings notification logic (when an admin needs context, the fleet is the relevant party for fleet-managed bookings)
-- [ ] Render Confirm/Reject/Start/Complete actions on `/host/bookings/[id]` for the fleet operator on linked-car bookings; suppress them for the individual owner
-- [ ] Booking lists at `/host/bookings`: fleets see linked-car bookings as actionable; individuals see their managed bookings as informational ("managed by [Fleet] — no action needed")
+- [x] Update `requireOwnBooking()` helpers in `app/actions/host-bookings.ts` to accept "fleet operator on a car with active link" alongside the existing "owner of the booking's car" check (now `requireBookingActor` via shared `lib/host-booking-authority.ts`)
+- [ ] Mirror update in admin-bookings notification logic (when an admin needs context, the fleet is the relevant party for fleet-managed bookings) — *deferred: admin still uses email-of-ownerId for context; revisit when admin notifications ship*
+- [x] Render Confirm/Reject/Start/Complete actions on `/host/bookings/[id]` for the fleet operator on linked-car bookings; suppress them for the individual owner (informational "Managed by [Fleet]" panel)
+- [x] Booking lists at `/host/bookings`: fleets see linked-car bookings as actionable; individuals see their managed bookings as informational ("Managed by [Fleet]" amber pill)
 
 ### 16.2 Chat counterparty switch
-- [ ] `app/actions/messages.ts#sendMessageAction`: extend the auth resolver — when the booking has an active fleet link, the fleet operator becomes a valid sender (replacing the individual)
-- [ ] Individual owner can poll/read the chat history (admin-style read-only) on their `/host/bookings/[id]`
-- [ ] System messages still write at lifecycle transitions; the "by host" wording becomes "by [Fleet]" when fleet acts
+- [x] `app/actions/messages.ts#sendMessageAction`: extend the auth resolver — when the booking has an active fleet link, the fleet operator becomes a valid sender (replacing the individual)
+- [x] Individual owner can poll/read the chat history (admin-style read-only) on their `/host/bookings/[id]` — new `viewerRole="host-readonly"` in chat panel + conversation
+- [x] System messages still write at lifecycle transitions; the "by host" wording becomes "by [Fleet]" when fleet acts
 
 ### 16.3 Availability authority
-- [ ] `CarAvailabilityException.addedByOwnerId: String?` — tracks who created each exception (audit trail)
-- [ ] Server actions for availability rules + exceptions extended: previously `requireHost()` checked `ownerId` match; now also accepts "fleet operator on a car with active link to that fleet"
-- [ ] UI: both individual host and fleet host see the same availability editor on `/host/cars/[id]/edit`. Each exception row shows who created it ("blocked by Joe" or "blocked by Acme Rentals — maintenance")
+- [x] `CarAvailabilityException.addedByOwnerId: String?` — tracks who created each exception (audit trail). Migration `20260506124507_add_availability_exception_added_by`
+- [x] Server actions for availability rules + exceptions extended: previously `requireHost()` checked `ownerId` match; now also accepts "fleet operator on a car with active link to that fleet" (new `requireAvailabilityActor` helper)
+- [x] UI: both individual host and fleet host see the same availability editor on `/host/cars/[id]/edit`. Each exception row shows who created it ("blocked by Joe" or "blocked by Acme Rentals — maintenance"). Fleet viewers get the availability sections only — listing details / photos / OR/CR stay owner-only
 
 ### 16.4 Activity log
-- [ ] New action codes for fleet-triggered transitions: `FLEET_BOOKING_CONFIRMED`, `FLEET_BOOKING_STARTED`, `FLEET_BOOKING_COMPLETED`, `FLEET_BOOKING_REJECTED`. Mirror the `HOST_*` pattern from Tier 13.
-- [ ] System messages in chat use "by [Fleet]" for these transitions
+- [x] New action codes for fleet-triggered transitions: `FLEET_BOOKING_CONFIRMED`, `FLEET_BOOKING_STARTED`, `FLEET_BOOKING_COMPLETED`, `FLEET_BOOKING_REJECTED`. Mirror the `HOST_*` pattern from Tier 13.
+- [x] System messages in chat use "by [Fleet]" for these transitions
 
 ### Out of scope for Tier 16 (deferred further)
 - Money-split deduction logic (`Booking.ownerPayout` still goes 100% to individual; fleet's management fee is recorded but not deducted) — defers to Tier 8 (accounting)

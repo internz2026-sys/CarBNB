@@ -1,7 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { Car, Plus } from "lucide-react";
+import { Building2, Car, Plus } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { ListingStatus } from "@/types";
@@ -30,7 +30,9 @@ export default async function HostCarsPage() {
   const session = await getCurrentHost();
   if (session.kind !== "verified") redirect("/host/dashboard");
 
-  const cars = await db.carListing.findMany({
+  const isFleet = session.owner.kind === "FLEET";
+
+  const ownedCars = await db.carListing.findMany({
     where: { ownerId: session.owner.id },
     orderBy: { createdAt: "desc" },
     select: {
@@ -46,6 +48,58 @@ export default async function HostCarsPage() {
       availabilitySummary: true,
     },
   });
+
+  // Tier 16: a fleet operator's "My Cars" includes cars on active links
+  // — they need an entry point to edit availability for cars they
+  // manage. Owned cars stay first in the list; linked cars follow with
+  // a "managed" badge so the fleet can tell them apart at a glance.
+  type CarRow = (typeof ownedCars)[number] & {
+    managedByOwnerName?: string | null;
+  };
+  const ownedRows: CarRow[] = ownedCars;
+  let linkedRows: CarRow[] = [];
+  if (isFleet) {
+    const linked = await db.carListing.findMany({
+      where: {
+        fleetLinks: {
+          some: { fleetId: session.owner.id, status: "ACTIVE" },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        brand: true,
+        model: true,
+        year: true,
+        plateNumber: true,
+        location: true,
+        dailyPrice: true,
+        status: true,
+        photos: true,
+        availabilitySummary: true,
+        owner: {
+          select: { fullName: true, companyName: true, kind: true },
+        },
+      },
+    });
+    linkedRows = linked.map((c) => ({
+      id: c.id,
+      brand: c.brand,
+      model: c.model,
+      year: c.year,
+      plateNumber: c.plateNumber,
+      location: c.location,
+      dailyPrice: c.dailyPrice,
+      status: c.status,
+      photos: c.photos,
+      availabilitySummary: c.availabilitySummary,
+      managedByOwnerName:
+        c.owner.kind === "FLEET" && c.owner.companyName
+          ? c.owner.companyName
+          : c.owner.fullName,
+    }));
+  }
+  const cars: CarRow[] = [...ownedRows, ...linkedRows];
 
   return (
     <div className="pb-10">
@@ -117,6 +171,12 @@ export default async function HostCarsPage() {
                     >
                       {car.status}
                     </span>
+                    {car.managedByOwnerName ? (
+                      <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
+                        <Building2 className="size-3" />
+                        Managed
+                      </span>
+                    ) : null}
                   </div>
                   <div className="flex-1 p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -127,6 +187,11 @@ export default async function HostCarsPage() {
                         <p className="truncate text-xs text-on-surface-variant">
                           {car.year} · {car.location}
                         </p>
+                        {car.managedByOwnerName ? (
+                          <p className="mt-1 truncate text-[11px] text-on-surface-variant">
+                            Owned by {car.managedByOwnerName}
+                          </p>
+                        ) : null}
                       </div>
                       <p className="shrink-0 text-sm font-bold text-primary">
                         {peso.format(car.dailyPrice)}

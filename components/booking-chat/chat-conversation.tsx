@@ -40,7 +40,7 @@ type ChatConversationProps = {
   initialMessages: SerializedMessage[];
   // The viewer's role in this booking. "admin" gets a read-only experience
   // (no input rendered). "customer" / "host" can send if chatState is active.
-  viewerRole: "customer" | "host" | "admin";
+  viewerRole: "customer" | "host" | "host-readonly" | "admin";
   // The viewer's id in the relevant table (Customer.id for "customer",
   // Owner.id for "host", null for "admin"). Used to align bubbles left/right.
   viewerId: string | null;
@@ -126,7 +126,7 @@ function MessageRow({
   viewerId,
 }: {
   message: SerializedMessage;
-  viewerRole: "customer" | "host" | "admin";
+  viewerRole: "customer" | "host" | "host-readonly" | "admin";
   viewerId: string | null;
 }) {
   if (message.kind === "system") {
@@ -140,9 +140,12 @@ function MessageRow({
   }
 
   // Right-align the viewer's own messages, left-align the other party's.
-  // Admin viewers see all messages left-aligned (they're observers).
+  // Admin + host-readonly viewers see all messages left-aligned (they're
+  // observers — admin for support, host-readonly for the individual owner
+  // looking in on a fleet-managed booking).
+  const isObserver = viewerRole === "admin" || viewerRole === "host-readonly";
   const isOwn =
-    viewerRole !== "admin" &&
+    !isObserver &&
     message.senderRole === viewerRole &&
     message.senderId === viewerId;
 
@@ -150,7 +153,7 @@ function MessageRow({
 
   return (
     <div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
-      {viewerRole === "admin" ? (
+      {isObserver ? (
         <span className="mb-0.5 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">
           {senderLabel}
         </span>
@@ -324,11 +327,14 @@ function ClosedBanner({
   viewerRole,
 }: {
   state: ChatState | SerializableChatState;
-  viewerRole: "customer" | "host" | "admin";
+  viewerRole: "customer" | "host" | "host-readonly" | "admin";
 }) {
   let copy: string;
   if (viewerRole === "admin") {
     copy = "Admin observer mode — chat is between the customer and host.";
+  } else if (viewerRole === "host-readonly") {
+    copy =
+      "Read-only — your linked fleet handles trip coordination on this booking.";
   } else if (state.kind === "not-yet") {
     copy = "Chat opens once the booking is confirmed.";
   } else if (state.kind === "closed-cancelled") {
