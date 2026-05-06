@@ -89,6 +89,15 @@ export default async function ListingDetailPage({
     where: { id },
     include: {
       owner: true,
+      // Tier 15: surface the active managing fleet (if any) for the
+      // dual-host label on the Owner card.
+      fleetLinks: {
+        where: { status: "ACTIVE" },
+        take: 1,
+        select: {
+          fleet: { select: { id: true, companyName: true, fullName: true } },
+        },
+      },
       availabilityRules: true,
       exceptions: true,
       bookings: {
@@ -175,6 +184,17 @@ export default async function ListingDetailPage({
 
   // Host trip count: number of past + present bookings on any of this owner's cars.
   const hostTrips = await db.booking.count({ where: { ownerId: listing.owner.id } });
+
+  // Tier 15: derive the active managing fleet (if any) for the dual-host
+  // label on the Owner card.
+  const fleetEntry = listing.fleetLinks[0];
+  const activeFleet = fleetEntry
+    ? {
+        id: fleetEntry.fleet.id,
+        displayName:
+          fleetEntry.fleet.companyName ?? fleetEntry.fleet.fullName,
+      }
+    : null;
 
   const nextBooking = listing.bookings
     .slice()
@@ -453,6 +473,17 @@ export default async function ListingDetailPage({
                   >
                     <h3 className="truncate">{listing.owner.fullName}</h3>
                   </Link>
+                  {activeFleet ? (
+                    <p className="mt-0.5 text-xs text-on-surface-variant">
+                      Managed by{" "}
+                      <Link
+                        className="font-semibold text-primary hover:underline"
+                        href={`/hosts/${activeFleet.id}`}
+                      >
+                        {activeFleet.displayName}
+                      </Link>
+                    </p>
+                  ) : null}
                   <div className="mt-1 flex items-center gap-2">
                     <div className="flex items-center gap-1 text-amber-500">
                       <Star className="size-4 fill-current" />

@@ -33,10 +33,20 @@ model Owner {
   totalEarnings      Float    @default(0)
   bio                String?  // public-profile bio, max 500 chars (validated in Zod)
 
-  cars          CarListing[]
-  bookings      Booking[]
-  ownerPayouts  OwnerPayout[]
-  reviews       Review[]
+  // Tier 15 — host kind discriminator. INDIVIDUAL = a person who owns a car
+  // and manages it themselves (existing behavior). FLEET = a registered
+  // car rental company that can manage bookings on behalf of one or many
+  // independent owners via FleetCarLink. Locked at signup; admin can flip
+  // manually if a host requests a change.
+  kind               String   @default("INDIVIDUAL") // INDIVIDUAL | FLEET
+  companyName        String?  // only meaningful when kind=FLEET
+  businessRegNumber  String?  // only meaningful when kind=FLEET
+
+  cars            CarListing[]
+  bookings        Booking[]
+  ownerPayouts    OwnerPayout[]
+  reviews         Review[]
+  managedLinks    FleetCarLink[] @relation("FleetManagedLinks")
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -72,6 +82,7 @@ model CarListing {
   exceptions          CarAvailabilityException[]
   reviews             Review[]
   favorites           Favorite[]
+  fleetLinks          FleetCarLink[]
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
@@ -244,6 +255,40 @@ model Review {
 
   @@index([listingId, createdAt(sort: Desc)])
   @@index([customerId])
+}
+
+// Fleet-car links — Tier 15. Independent owner requests management of
+// their car by a fleet operator. Lifecycle:
+//   - PENDING: owner sent request; fleet hasn't responded
+//   - ACTIVE:  fleet approved; the link is operational. Tier 16 will
+//              route bookings + chat through the fleet on these cars.
+//              Tier 15 only renders "managed by X" labels.
+//   - INACTIVE: link severed by either side, or fleet rejected the
+//              request. Historical row preserved for audit.
+//
+// The constraint "one ACTIVE link per listing" is enforced at the
+// application layer (in approveLinkAction) — Prisma doesn't support
+// partial unique indexes via the schema language, and a full unique on
+// (listingId, status) would prevent multiple INACTIVE/PENDING rows
+// over time which is fine to allow.
+model FleetCarLink {
+  id                    String   @id @default(cuid())
+
+  listingId             String
+  listing               CarListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  fleetId               String
+  fleet                 Owner    @relation("FleetManagedLinks", fields: [fleetId], references: [id], onDelete: Cascade)
+
+  status                String   // PENDING | ACTIVE | INACTIVE
+  managementFeePercent  Float?   // captured at link approval; deduction defers to Tier 8 (accounting)
+
+  requestedAt           DateTime @default(now())
+  respondedAt           DateTime?
+  severedAt             DateTime?
+
+  @@index([fleetId, status])
+  @@index([listingId, status])
 }
 
 // Booking chat messages — Tier 14. Per-booking lifecycle-bounded chat.

@@ -23,14 +23,17 @@ export async function generateMetadata({
   const { id } = await params;
   const owner = await db.owner.findUnique({
     where: { id },
-    select: { fullName: true, status: true },
+    select: { fullName: true, status: true, kind: true, companyName: true },
   });
   if (!owner || owner.status !== OwnerStatus.VERIFIED) {
     return { title: "Host Not Found | DriveXP" };
   }
+  const displayName =
+    owner.kind === "FLEET" && owner.companyName ? owner.companyName : owner.fullName;
+  const kindLabel = owner.kind === "FLEET" ? "Fleet Operator" : "Host";
   return {
-    title: `${owner.fullName} | DriveXP Host`,
-    description: `Browse cars hosted by ${owner.fullName} on DriveXP.`,
+    title: `${displayName} | DriveXP ${kindLabel}`,
+    description: `Browse cars ${owner.kind === "FLEET" ? "managed" : "hosted"} by ${displayName} on DriveXP.`,
   };
 }
 
@@ -46,22 +49,48 @@ function getOwnerInitials(name: string): string {
 export default async function HostProfilePage({ params }: HostProfilePageProps) {
   const { id } = await params;
 
-  const owner = await db.owner.findUnique({
-    where: { id },
-    include: {
-      cars: {
-        where: { status: ListingStatus.ACTIVE },
-        orderBy: { createdAt: "desc" },
-        include: { owner: { select: { status: true } } },
-      },
-    },
-  });
+  const owner = await db.owner.findUnique({ where: { id } });
 
   // Don't expose pending or suspended hosts publicly — those listings
   // wouldn't be browsable anyway, so the profile page would mislead.
   if (!owner || owner.status !== OwnerStatus.VERIFIED) {
     notFound();
   }
+
+  const isFleet = owner.kind === "FLEET";
+
+  // Listings query depends on kind:
+  // - INDIVIDUAL: just cars they own
+  // - FLEET: cars they own + cars linked to them via ACTIVE FleetCarLink
+  // Both restricted to ACTIVE listing status. (Tier 15)
+  const listingsInclude = {
+    owner: { select: { status: true } },
+    fleetLinks: {
+      where: { status: "ACTIVE" },
+      take: 1,
+      select: {
+        fleet: { select: { id: true, companyName: true, fullName: true } },
+      },
+    },
+  } as const;
+
+  const listings = isFleet
+    ? await db.carListing.findMany({
+        where: {
+          status: ListingStatus.ACTIVE,
+          OR: [
+            { ownerId: id },
+            { fleetLinks: { some: { fleetId: id, status: "ACTIVE" } } },
+          ],
+        },
+        orderBy: { createdAt: "desc" },
+        include: listingsInclude,
+      })
+    : await db.carListing.findMany({
+        where: { ownerId: id, status: ListingStatus.ACTIVE },
+        orderBy: { createdAt: "desc" },
+        include: listingsInclude,
+      });
 
   const viewer = await getCurrentViewer();
 
@@ -75,6 +104,8 @@ export default async function HostProfilePage({ params }: HostProfilePageProps) 
     });
     for (const f of favs) favoritedIds.add(f.listingId);
   }
+
+  const displayName = isFleet && owner.companyName ? owner.companyName : owner.fullName;
 
   return (
     <div className="min-h-screen bg-surface pb-20 font-sans">
@@ -139,7 +170,7 @@ export default async function HostProfilePage({ params }: HostProfilePageProps) 
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
             <div className="relative shrink-0">
               <div className="grid size-20 place-items-center rounded-full bg-[linear-gradient(135deg,var(--color-primary-fixed)_0%,var(--color-secondary-container)_100%)] text-xl font-bold text-primary shadow-[0_8px_24px_rgb(19_27_46_/_0.06)]">
-                {getOwnerInitials(owner.fullName)}
+                {getOwnerInitials(displayName)}
               </div>
               <div className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full bg-tertiary text-white ring-2 ring-surface-container-lowest">
                 <ShieldCheck className="size-4" />
@@ -148,48 +179,66 @@ export default async function HostProfilePage({ params }: HostProfilePageProps) 
 
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-primary">
-                Verified Host
+                {isFleet ? "Verified Fleet Operator" : "Verified Host"}
               </p>
               <h1 className="mt-1 font-headline text-2xl font-extrabold tracking-tight text-on-surface sm:text-3xl">
-                {owner.fullName}
+                {displayName}
               </h1>
               <p className="mt-2 text-sm text-on-surface-variant">
                 Member since {format(owner.createdAt, "MMMM yyyy")}
+                {isFleet ? " · Operator account" : ""}
               </p>
             </div>
           </div>
 
           {owner.bio ? (
-            <p className="mt-6 whitespace-pre-wrap border-t border-border pt-6 text-sm leading-7 text-on-surface-variant">
-              {owner.bio}
-            </p>
+            <div className="mt-6 border-t border-border pt-6">
+              {isFleet ? (
+                <h2 className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+                  About this company
+                </h2>
+              ) : null}
+              <p className="whitespace-pre-wrap text-sm leading-7 text-on-surface-variant">
+                {owner.bio}
+              </p>
+            </div>
           ) : null}
         </div>
 
         <div className="mb-4 flex items-baseline justify-between">
           <h2 className="font-headline text-xl font-bold text-on-surface">
-            Listings ({owner.cars.length})
+            {isFleet ? "Cars under management" : "Listings"} ({listings.length})
           </h2>
         </div>
 
-        {owner.cars.length === 0 ? (
+        {listings.length === 0 ? (
           <div className="rounded-2xl bg-surface-container-low p-12 text-center">
             <p className="text-lg font-semibold text-on-surface">
               No active listings right now
             </p>
             <p className="mt-2 text-sm text-on-surface-variant">
-              {owner.fullName.split(" ")[0]} doesn&apos;t have any cars available at the moment. Check back soon.
+              {(isFleet && owner.companyName ? owner.companyName : owner.fullName.split(" ")[0])} doesn&apos;t have any cars available at the moment. Check back soon.
             </p>
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {owner.cars.map((listing) => (
-              <ListingCard
-                isFavorited={favoritedIds.has(listing.id)}
-                key={listing.id}
-                listing={listing}
-              />
-            ))}
+            {listings.map((listing) => {
+              const fleetEntry = listing.fleetLinks[0];
+              const activeFleet = fleetEntry
+                ? {
+                    id: fleetEntry.fleet.id,
+                    displayName:
+                      fleetEntry.fleet.companyName ?? fleetEntry.fleet.fullName,
+                  }
+                : null;
+              return (
+                <ListingCard
+                  isFavorited={favoritedIds.has(listing.id)}
+                  key={listing.id}
+                  listing={{ ...listing, activeFleet }}
+                />
+              );
+            })}
           </div>
         )}
       </section>

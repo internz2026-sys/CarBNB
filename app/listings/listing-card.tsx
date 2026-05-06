@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Settings2, ShieldCheck, Star, Users, Zap } from "lucide-react";
+import { Building2, Settings2, ShieldCheck, Star, Users, Zap } from "lucide-react";
 import { OwnerStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { vehicleTypeLabel } from "@/lib/listing-taxonomy";
@@ -28,6 +28,11 @@ type ListingCardProps = {
     avgRating: number;
     reviewCount: number;
     owner: { status: string };
+    // Tier 15: when the car has an ACTIVE FleetCarLink, populate this with
+    // the managing fleet's id + display name so the card can render the
+    // dual-host label "Hosted by … · managed by [Fleet]". Null when the
+    // owner manages directly.
+    activeFleet?: { id: string; displayName: string } | null;
   };
   // Optional date params to thread to the listing detail page so the booking
   // form pre-fills with the search range.
@@ -47,6 +52,7 @@ export function ListingCard({
   const primaryPhoto = listing.photos[0];
   const photoUrl = primaryPhoto ? resolveListingPhotoUrl(primaryPhoto) : null;
   const verified = listing.owner.status === OwnerStatus.VERIFIED;
+  const fleet = listing.activeFleet ?? null;
 
   const detailQuery: Record<string, string> = {};
   if (fromParam) detailQuery.from = fromParam;
@@ -98,6 +104,12 @@ export function ListingCard({
             <p className="text-xs text-on-surface-variant">
               {listing.year} · {vehicleTypeLabel(listing.vehicleType)} · {listing.location}
             </p>
+            {fleet ? (
+              <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-primary">
+                <Building2 className="size-3" />
+                Managed by {fleet.displayName}
+              </p>
+            ) : null}
           </div>
           <div className="text-right">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-on-surface-variant">

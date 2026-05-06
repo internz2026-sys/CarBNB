@@ -26,7 +26,16 @@ export default async function CustomerFavoritesPage() {
     orderBy: { createdAt: "desc" },
     include: {
       listing: {
-        include: { owner: { select: { status: true } } },
+        include: {
+          owner: { select: { status: true } },
+          fleetLinks: {
+            where: { status: "ACTIVE" },
+            take: 1,
+            select: {
+              fleet: { select: { id: true, companyName: true, fullName: true } },
+            },
+          },
+        },
       },
     },
   });
@@ -96,13 +105,23 @@ export default async function CustomerFavoritesPage() {
           </div>
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {activeFavorites.map((f) => (
-              <ListingCard
-                isFavorited
-                key={f.id}
-                listing={f.listing}
-              />
-            ))}
+            {activeFavorites.map((f) => {
+              const fleetEntry = f.listing.fleetLinks[0];
+              const activeFleet = fleetEntry
+                ? {
+                    id: fleetEntry.fleet.id,
+                    displayName:
+                      fleetEntry.fleet.companyName ?? fleetEntry.fleet.fullName,
+                  }
+                : null;
+              return (
+                <ListingCard
+                  isFavorited
+                  key={f.id}
+                  listing={{ ...f.listing, activeFleet }}
+                />
+              );
+            })}
           </div>
         )}
       </section>
