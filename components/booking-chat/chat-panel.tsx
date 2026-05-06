@@ -14,8 +14,12 @@ type ChatPanelProps = {
     status: string;
     rentalCompletedAt: Date | null;
   };
-  viewerRole: "customer" | "host" | "admin";
+  viewerRole: "customer" | "host" | "host-readonly" | "admin";
   viewerId: string | null;
+  // Tier 16 — when the individual owner views a fleet-managed booking,
+  // we surface a banner explaining who's actually corresponding with the
+  // customer. Pass the fleet's display name in that case.
+  managedByFleet?: { displayName: string } | null;
 };
 
 // Server component. Loads the initial message thread + computes the chat
@@ -24,6 +28,7 @@ export async function BookingChatPanel({
   booking,
   viewerRole,
   viewerId,
+  managedByFleet = null,
 }: ChatPanelProps) {
   const chatState = getChatState(booking);
 
@@ -86,7 +91,9 @@ export async function BookingChatPanel({
       ? "Chat with renter"
       : viewerRole === "customer"
         ? "Chat with host"
-        : "Trip chat (read-only)";
+        : viewerRole === "host-readonly"
+          ? "Trip chat (read-only)"
+          : "Trip chat (read-only)";
 
   const pastTripsHref =
     viewerRole === "customer"
@@ -108,11 +115,22 @@ export async function BookingChatPanel({
               <ShieldCheck className="w-3 h-3" />
               Admin view
             </span>
+          ) : viewerRole === "host-readonly" ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+              <ShieldCheck className="w-3 h-3" />
+              Read-only
+            </span>
           ) : null}
         </div>
         {viewerRole === "admin" ? (
           <p className="text-xs text-on-surface-variant pt-1">
             Read-only access for support and dispute review. You can&apos;t send messages.
+          </p>
+        ) : viewerRole === "host-readonly" ? (
+          <p className="text-xs text-on-surface-variant pt-1">
+            {managedByFleet
+              ? `${managedByFleet.displayName} corresponds with the renter on your behalf. You can read the thread but not send messages.`
+              : "This chat is managed by your linked fleet. Read-only access."}
           </p>
         ) : (
           <p className="text-xs text-on-surface-variant pt-1">

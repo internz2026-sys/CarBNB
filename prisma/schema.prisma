@@ -183,6 +183,12 @@ model CarAvailabilityException {
   isAvailable  Boolean    @default(false)
   reason       String?
 
+  // Tier 16 — audit trail for who created the exception. Null for rows
+  // migrated from Tier 7 era (we only learn the author for new writes).
+  // Read-side UI shows "blocked by Joe" or "blocked by Acme Rentals" when
+  // present so the individual + fleet can tell who scheduled what.
+  addedByOwnerId String?
+
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 }

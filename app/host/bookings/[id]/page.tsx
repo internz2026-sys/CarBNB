@@ -21,8 +21,10 @@ import { BookingStatus, PaymentStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { CANCELLATION_REASONS } from "@/lib/cancellation-reasons";
+import { resolveBookingAuthority } from "@/lib/host-booking-authority";
 import { HostBookingActions } from "./host-booking-actions";
 import { BookingChatPanel } from "@/components/booking-chat/chat-panel";
+import { Building2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -72,7 +74,18 @@ export default async function HostBookingDetailPage({
       },
     },
   });
-  if (!booking || booking.ownerId !== session.owner.id) notFound();
+  if (!booking) notFound();
+
+  // Tier 16: a fleet operator with an ACTIVE link on the booking's car can
+  // view + act on the booking. The individual owner can view either kind
+  // (direct or fleet-managed) but actions are suppressed for the latter.
+  const authority = await resolveBookingAuthority(booking.id, session.owner.id);
+  if (authority.kind === "none") notFound();
+  const canAct = authority.kind === "owner-direct" || authority.kind === "fleet";
+  const managedBy =
+    authority.kind === "owner-managed" || authority.kind === "fleet"
+      ? authority.fleet
+      : null;
 
   const photoUrl = booking.carPhoto ? resolveListingPhotoUrl(booking.carPhoto) : null;
   const cancellationLabel = CANCELLATION_REASONS.find(
@@ -126,7 +139,23 @@ export default async function HostBookingDetailPage({
         </div>
       </div>
 
-      <HostBookingActions bookingId={booking.id} status={booking.status} />
+      {canAct ? (
+        <HostBookingActions bookingId={booking.id} status={booking.status} />
+      ) : managedBy ? (
+        <div className="rounded-xl border border-dashed border-border bg-surface-container-low p-4 text-sm text-on-surface-variant flex items-start gap-3">
+          <Building2 className="size-4 mt-0.5 text-primary" />
+          <div>
+            <p className="font-semibold text-on-surface">
+              Managed by {managedBy.displayName}
+            </p>
+            <p className="text-xs">
+              This car is operated by your linked fleet. They handle confirm,
+              start, and complete actions for this booking — no action needed
+              from you.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1 space-y-6">
@@ -281,8 +310,15 @@ export default async function HostBookingDetailPage({
               status: booking.status,
               rentalCompletedAt: booking.rentalCompletedAt,
             }}
+            managedByFleet={
+              authority.kind === "owner-managed"
+                ? { displayName: authority.fleet.displayName }
+                : null
+            }
             viewerId={session.owner.id}
-            viewerRole="host"
+            viewerRole={
+              authority.kind === "owner-managed" ? "host-readonly" : "host"
+            }
           />
 
           {booking.cancellationReason ? (

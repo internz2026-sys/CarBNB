@@ -31,6 +31,9 @@ type ExceptionRow = {
   date: string;
   isAvailable: boolean;
   reason: string | null;
+  // Tier 16 — display name of who added the row, when known. Null for
+  // pre-Tier-16 rows where we never recorded the author.
+  addedByName: string | null;
 };
 
 const STATUS_OPTIONS = [
@@ -139,6 +142,9 @@ export function HostAvailabilityExceptionsForm({
                     <p className="text-xs text-muted-foreground">
                       {ex.isAvailable ? "Forced available" : "Blocked"}
                       {ex.reason ? ` · ${ex.reason}` : ""}
+                      {ex.addedByName
+                        ? ` · ${ex.isAvailable ? "added" : "blocked"} by ${ex.addedByName}`
+                        : ""}
                     </p>
                   </div>
                 </div>

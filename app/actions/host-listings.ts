@@ -12,6 +12,7 @@ import {
   VEHICLE_TYPE_SLUGS,
   VEHICLE_FEATURE_SLUGS,
 } from "@/lib/listing-taxonomy";
+import { resolveListingAuthority } from "@/lib/host-listing-authority";
 
 const CAR_PHOTOS_BUCKET = "car-photos";
 const CAR_DOCUMENTS_BUCKET = "car-documents";
@@ -66,6 +67,48 @@ async function requireOwnListing(
     return { error: "You cannot modify a listing you don't own." };
   }
   return { listing };
+}
+
+// Tier 16: availability rules + exceptions are editable by both the
+// individual owner AND the fleet operator on an ACTIVE link to the
+// car. Other listing-mutation actions (details edit, photos, OR/CR)
+// stay owner-only via requireOwnListing above.
+type AvailabilityActor =
+  | { actorKind: "owner-direct"; actorLabel: string; listing: ListingRow }
+  | {
+      actorKind: "fleet";
+      actorLabel: string;
+      listing: ListingRow;
+      fleet: { id: string; displayName: string };
+    };
+
+async function requireAvailabilityActor(
+  listingId: string,
+  owner: {
+    id: string;
+    email: string;
+    fullName: string;
+    companyName: string | null;
+    kind: string;
+  },
+): Promise<{ error: string } | AvailabilityActor> {
+  const authority = await resolveListingAuthority(listingId, owner.id);
+  if (authority.kind === "none") {
+    return { error: "You cannot modify availability for a listing you don't manage." };
+  }
+  if (authority.kind === "fleet") {
+    return {
+      actorKind: "fleet",
+      actorLabel: `Fleet ${owner.email} (${owner.companyName ?? owner.fullName})`,
+      listing: authority.listing,
+      fleet: authority.fleet,
+    };
+  }
+  return {
+    actorKind: "owner-direct",
+    actorLabel: `Host ${owner.email}`,
+    listing: authority.listing,
+  };
 }
 
 function fileExtension(file: File): string {
@@ -517,7 +560,7 @@ export async function saveHostAvailabilityRulesAction(
   const listingId = String(formData.get("listingId") ?? "").trim();
   if (!listingId) return { error: "Missing listing id." };
 
-  const scope = await requireOwnListing(listingId, host.id);
+  const scope = await requireAvailabilityActor(listingId, host);
   if ("error" in scope) return { error: scope.error };
   const listing = scope.listing;
 
@@ -610,7 +653,7 @@ export async function saveHostAvailabilityRulesAction(
   await db.activityLogEntry.create({
     data: {
       action: "LISTING_AVAILABILITY_UPDATED",
-      description: `Host ${host.email} updated weekly availability for listing ${listing.brand} ${listing.model} (${listing.plateNumber})`,
+      description: `${scope.actorLabel} updated weekly availability for listing ${listing.brand} ${listing.model} (${listing.plateNumber})`,
       type: "car",
     },
   });
@@ -636,7 +679,7 @@ export async function addHostAvailabilityExceptionAction(
   const listingId = String(formData.get("listingId") ?? "").trim();
   if (!listingId) return { error: "Missing listing id." };
 
-  const scope = await requireOwnListing(listingId, host.id);
+  const scope = await requireAvailabilityActor(listingId, host);
   if ("error" in scope) return { error: scope.error };
   const listing = scope.listing;
 
@@ -666,13 +709,14 @@ export async function addHostAvailabilityExceptionAction(
       date: dateValue,
       isAvailable: parsed.data.isAvailable === "yes",
       reason: parsed.data.reason || null,
+      addedByOwnerId: host.id,
     },
   });
 
   await db.activityLogEntry.create({
     data: {
       action: "LISTING_EXCEPTION_ADDED",
-      description: `Host ${host.email} added ${parsed.data.isAvailable === "yes" ? "available" : "blocked"} exception on ${parsed.data.date} for listing ${listing.brand} ${listing.model}`,
+      description: `${scope.actorLabel} added ${parsed.data.isAvailable === "yes" ? "available" : "blocked"} exception on ${parsed.data.date} for listing ${listing.brand} ${listing.model}`,
       type: "car",
     },
   });
@@ -697,16 +741,19 @@ export async function deleteHostAvailabilityExceptionAction(
     include: { carListing: true },
   });
   if (!existing) return { error: "Exception not found." };
-  if (existing.carListing.ownerId !== host.id) {
-    return { error: "You cannot modify a listing you don't own." };
-  }
+
+  // Tier 16 — both the individual owner and a fleet on an active link
+  // can remove an exception (mirrors add authority). Anyone else is
+  // rejected here even if the row exists.
+  const scope = await requireAvailabilityActor(existing.carListingId, host);
+  if ("error" in scope) return { error: scope.error };
 
   await db.carAvailabilityException.delete({ where: { id: exceptionId } });
 
   await db.activityLogEntry.create({
     data: {
       action: "LISTING_EXCEPTION_REMOVED",
-      description: `Host ${host.email} removed exception on ${existing.date.toISOString().slice(0, 10)} for listing ${existing.carListing.brand} ${existing.carListing.model}`,
+      description: `${scope.actorLabel} removed exception on ${existing.date.toISOString().slice(0, 10)} for listing ${existing.carListing.brand} ${existing.carListing.model}`,
       type: "car",
     },
   });

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { isChatOpenForWrites, MESSAGE_BODY_MAX } from "@/lib/booking-chat";
+import { resolveBookingAuthority } from "@/lib/host-booking-authority";
 
 // ─────────────────────────────────────────────────────────────────────────
 // Auth resolver — returns either { kind: "customer", id } or
@@ -85,10 +86,21 @@ export async function sendMessageAction(
   });
   if (!booking) return { ok: false, error: "Booking not found." };
 
-  // Sender must be either the booking's customer or its owner.
+  // Sender must be either the booking's customer or whoever currently
+  // holds host-side authority. Tier 16: when the booking's car has an
+  // ACTIVE FleetCarLink, the FLEET — not the individual owner — is the
+  // host-side counterparty. The individual gets read-only access on
+  // their host-bookings page; sending is rejected here even though they
+  // own the listing row.
+  let isHostOnBooking = false;
+  if (sender.kind === "host") {
+    const authority = await resolveBookingAuthority(booking.id, sender.id);
+    if (authority.kind === "owner-direct" || authority.kind === "fleet") {
+      isHostOnBooking = true;
+    }
+  }
   const isCustomerOnBooking =
     sender.kind === "customer" && sender.id === booking.customerId;
-  const isHostOnBooking = sender.kind === "host" && sender.id === booking.ownerId;
   if (!isCustomerOnBooking && !isHostOnBooking) {
     return {
       ok: false,
@@ -170,19 +182,37 @@ export async function fetchMessagesAfterAction(
 
   const booking = await db.booking.findUnique({
     where: { id: bookingId },
-    select: { id: true, customerId: true, ownerId: true },
+    select: {
+      id: true,
+      customerId: true,
+      ownerId: true,
+      carListing: {
+        select: {
+          fleetLinks: {
+            where: { status: "ACTIVE" },
+            select: { fleetId: true },
+            take: 1,
+          },
+        },
+      },
+    },
   });
   if (!booking) return { ok: false, error: "Booking not found." };
 
-  // Authorize: customer / owner / admin (read-only) can poll this booking's chat.
+  // Authorize: customer / individual owner / fleet operator on an ACTIVE
+  // link / admin (read-only) can poll this booking's chat. Tier 16: the
+  // individual owner stays in the read pool even when fleet-managed, so
+  // their `/host/bookings/[id]` chat panel reflects ongoing activity.
   const [customer, owner, admin] = await Promise.all([
     db.customer.findUnique({ where: { email: user.email }, select: { id: true } }),
     db.owner.findUnique({ where: { email: user.email }, select: { id: true } }),
     db.user.findUnique({ where: { email: user.email }, select: { id: true } }),
   ]);
+  const activeFleetId = booking.carListing.fleetLinks[0]?.fleetId ?? null;
   const allowed =
     (customer && customer.id === booking.customerId) ||
     (owner && owner.id === booking.ownerId) ||
+    (owner && activeFleetId && owner.id === activeFleetId) ||
     Boolean(admin);
   if (!allowed) {
     return { ok: false, error: "You can only view chats you're part of." };
