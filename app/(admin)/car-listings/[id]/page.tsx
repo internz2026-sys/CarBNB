@@ -56,7 +56,8 @@ export default async function CarListingDetailPage({
     },
   });
 
-  if (!listing) {
+  if (!listing || listing.status === ListingStatus.DRAFT) {
+    // Tier 17 — DRAFT listings are host-private until submitted.
     notFound();
   }
 

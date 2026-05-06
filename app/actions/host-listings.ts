@@ -200,7 +200,11 @@ export async function createHostListingAction(
       dailyPrice: data.dailyPrice,
       description: data.description || null,
       photos: [],
-      status: ListingStatus.PENDING_APPROVAL,
+      // Tier 17 — wizard creation lands the row in DRAFT. Photos +
+      // OR/CR step nudge through edit page; explicit "Submit for
+      // Approval" CTA flips DRAFT → PENDING_APPROVAL once both
+      // prerequisites land.
+      status: ListingStatus.DRAFT,
     },
   });
 
@@ -212,7 +216,7 @@ export async function createHostListingAction(
   await db.activityLogEntry.create({
     data: {
       action: "LISTING_CREATED",
-      description: `Host ${host.email} submitted listing ${listing.brand} ${listing.model} (${listing.plateNumber}) for approval`,
+      description: `Host ${host.email} started a listing for ${listing.brand} ${listing.model} (${listing.plateNumber}) — currently in DRAFT`,
       type: "car",
     },
   });
@@ -220,6 +224,58 @@ export async function createHostListingAction(
   revalidatePath("/host/cars");
   revalidatePath("/car-listings");
   redirect(`/host/cars/${listing.id}/edit`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tier 17 — Submit for Approval. Flips DRAFT → PENDING_APPROVAL once
+// the host has uploaded at least one photo and an OR/CR document. UI
+// gates the button visually; this action is the trust boundary that
+// re-checks server-side.
+// ─────────────────────────────────────────────────────────────────────────
+
+export async function submitListingForApprovalAction(
+  _prev: HostListingActionState,
+  formData: FormData,
+): Promise<HostListingActionState> {
+  const host = await requireHost();
+
+  const listingId = String(formData.get("listingId") ?? "").trim();
+  if (!listingId) return { error: "Missing listing id." };
+
+  const scope = await requireOwnListing(listingId, host.id);
+  if ("error" in scope) return { error: scope.error };
+  const listing = scope.listing;
+
+  if (listing.status !== ListingStatus.DRAFT) {
+    return {
+      error: `This listing is already "${listing.status}" — only DRAFT listings can be submitted.`,
+    };
+  }
+  if (listing.photos.length < 1) {
+    return { error: "Add at least one photo before submitting for approval." };
+  }
+  if (!listing.orCrDocumentUrl) {
+    return { error: "Upload the OR/CR document before submitting for approval." };
+  }
+
+  await db.carListing.update({
+    where: { id: listingId },
+    data: { status: ListingStatus.PENDING_APPROVAL },
+  });
+
+  await db.activityLogEntry.create({
+    data: {
+      action: "LISTING_SUBMITTED_FOR_APPROVAL",
+      description: `Host ${host.email} submitted listing ${listing.brand} ${listing.model} (${listing.plateNumber}) for admin approval`,
+      type: "car",
+    },
+  });
+
+  revalidatePath("/host/cars");
+  revalidatePath(`/host/cars/${listingId}/edit`);
+  revalidatePath("/dashboard");
+  revalidatePath("/car-listings");
+  return null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

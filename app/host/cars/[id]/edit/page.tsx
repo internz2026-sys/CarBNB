@@ -10,12 +10,14 @@ import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getListingDocumentSignedUrl } from "@/lib/listing-documents";
 import { resolveListingAuthority } from "@/lib/host-listing-authority";
 import { Building2 } from "lucide-react";
+import { ListingWizardStepper } from "@/components/host/listing-wizard-stepper";
 import { EditHostListingForm } from "./edit-host-listing-form";
 import { HostListingPhotoGallery } from "./host-listing-photo-gallery";
 import { HostListingOrCrForm } from "./host-listing-or-cr-form";
 import { HostAvailabilityRulesForm } from "./host-availability-rules-form";
 import { HostAvailabilityExceptionsForm } from "./host-availability-exceptions-form";
 import { FleetLinkSection } from "./fleet-link-section";
+import { SubmitForApprovalCta } from "./submit-for-approval-cta";
 
 export const dynamic = "force-dynamic";
 
@@ -170,11 +172,27 @@ export default async function HostEditListingPage({
           Plate: <span className="font-mono">{listing.plateNumber}</span> ·{" "}
           {isFleetViewer
             ? `Owned by ${ownerName}. You can update weekly availability and exceptions.`
-            : listing.status === ListingStatus.PENDING_APPROVAL
-              ? "Waiting on admin approval. Keep filling out photos, OR/CR, and availability."
-              : "Changes save instantly and do not require re-approval."}
+            : listing.status === ListingStatus.DRAFT
+              ? "Draft in progress — finish photos and OR/CR, then submit for admin approval."
+              : listing.status === ListingStatus.PENDING_APPROVAL
+                ? "Waiting on admin approval. Keep filling out photos, OR/CR, and availability."
+                : "Changes save instantly and do not require re-approval."}
         </p>
       </div>
+
+      {!isFleetViewer && listing.status === ListingStatus.DRAFT ? (
+        <ListingWizardStepper
+          currentStep={
+            listing.photos.length === 0
+              ? "photos"
+              : !listing.orCrDocumentUrl
+                ? "orcr"
+                : "orcr"
+          }
+          hasOrCr={Boolean(listing.orCrDocumentUrl)}
+          hasPhotos={listing.photos.length > 0}
+        />
+      ) : null}
 
       {isFleetViewer ? (
         <div className="rounded-xl border border-dashed border-border bg-surface-container-low p-4 text-sm text-on-surface-variant flex items-start gap-3">
@@ -244,7 +262,7 @@ export default async function HostEditListingPage({
         }))}
       />
 
-      {showFleetLinkSection ? (
+      {showFleetLinkSection && listing.status !== ListingStatus.DRAFT ? (
         <FleetLinkSection
           fleets={fleetOptions.map((f) => ({
             id: f.id,
@@ -266,6 +284,14 @@ export default async function HostEditListingPage({
                 }
               : null
           }
+          listingId={listing.id}
+        />
+      ) : null}
+
+      {!isFleetViewer && listing.status === ListingStatus.DRAFT ? (
+        <SubmitForApprovalCta
+          hasOrCr={Boolean(listing.orCrDocumentUrl)}
+          hasPhotos={listing.photos.length > 0}
           listingId={listing.id}
         />
       ) : null}

@@ -139,6 +139,11 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Booking authority on fleet-managed cars | **Fleet exclusive once a `FleetCarLink` is `ACTIVE`.** Confirm / Reject / Start / Complete actions only render on the fleet's host dashboard. Individual owner sees the booking on their own `/host/bookings` list as informational (no action buttons). Admin retains exclusive MarkPaid + Cancel | Tier 16 | Cleanest division. The whole point of linking is "I delegated the operational side to the fleet" — letting the individual still act would defeat the purpose. Two-cook conflicts already prevented by the Tier 13 status guard pattern. |
 | Booking chat counterparty on fleet-managed cars | **Customer ↔ fleet operator** is the active chat. The booking's `senderRole` for host-side messages becomes the fleet's role. Individual owner sees the chat history read-only on their `/host/bookings/[id]` (admin-style read-only). One thread per booking — Tier 14 invariant preserved | Tier 16 | Matches "fleet exclusive" booking authority. Avoids 3-way chat (overkill in V1). The individual stays visible to the customer via the dual-host name display, but the operational counterparty is whoever's actually managing. |
 | Availability authority on fleet-managed cars | **Both individual and fleet can edit weekly rules and exceptions.** New `CarAvailabilityException.addedByOwnerId` field tracks who created each exception (audit trail). `requireHost()` server-action gate extends to accept "fleet operator on a car with active link to that fleet" | Tier 16 | Both have legitimate scheduling concerns: individual blocks for personal use, fleet blocks for maintenance / detailing. The union of all blocks applies — no real conflict. Activity log + the new column preserve audit trail. |
+| Listing submission flow | **Multi-step wizard: basics → photos → OR/CR.** New `DRAFT` status (string union, no Postgres enum); listing rows start as DRAFT and only flip to PENDING_APPROVAL via explicit "Submit for Approval" CTA gated on photos.length ≥ 1 AND orCrDocumentUrl present. Action-layer re-checks the prerequisites server-side | Tier 17 | Today's flow lets admins approve listings sight-unseen. Bundling docs with submission matches Turo / Airbnb expectations and eliminates the "approved without docs → never uploaded" failure mode. DRAFT keeps mid-wizard rows out of admin's queue. |
+| Photo requirement at submission | **Require ≥1 photo before DRAFT can flip to PENDING_APPROVAL.** No upper bound at submission; existing 8-photo cap stays. No minimum count beyond 1 | Tier 17 | Admin needs visual context to approve. ≥1 is the lowest bar that still gives admin something to look at; phones make this cheap. Higher minimums add submission friction without proportional review value. |
+| Availability in submission flow | **Stays post-approval — NOT pulled into the wizard.** Hosts set weekly rules + exceptions on `/host/cars/[id]/edit` after admin approves the listing | Tier 17 | Availability is scheduling, not a trust signal. Including it lengthens the wizard with no admin-decision value. Same as today's behavior — only the wizard ordering of basics/photos/OR/CR is new. |
+| DRAFT visibility on /host/cars | **Show DRAFT cards with an amber "Continue setup" badge.** Click → `/host/cars/[id]/edit` (same page as ACTIVE/PENDING/etc.) with a sticky footer "Submit for Approval" CTA gated on prerequisites | Tier 17 | One edit page, two button states based on status. Cleaner than a parallel wizard route. Host always knows where their incomplete drafts are. |
+| Legacy PENDING_APPROVAL listings without OR/CR | **Grandfathered under old rules.** Admin can still approve them as-is. Only the new wizard path requires docs to leave DRAFT | Tier 17 | Small known set; rewriting in-flight submissions creates worse experience than letting admin handle them under prior conventions. The new policy applies cleanly to all wizard-created listings going forward. |
 | Host listing create + edit flow | **Approval on first submit, free edit after.** Host submits → `PENDING_APPROVAL` → admin approves → `ACTIVE`. Post-approval edits to price / description / photos / availability do NOT bounce the listing back to PENDING_APPROVAL | Tier 6 | Matches Turo / Airbnb. Vetting lives at onboarding; hosts need frictionless price tuning. Plate stays locked after create to prevent drift. |
 | Pending-host UX | **Dedicated "awaiting approval" locked screen** at `/host/dashboard` — pending hosts can log in but no actions render. SUSPENDED hosts get the same treatment with red-shield copy. Full progress-dashboard onboarding deferred to Tier 7+ | Tier 6 | Simplest that's still professional for the demo. `requireHost()` in server actions is the real trust gate; pages are the visible one. |
 | Host dashboard tiles | **Active listings count → /host/cars · Upcoming bookings count → /host/bookings · Total earnings = sum(ownerPayout) of COMPLETED bookings**. No activity feed | Tier 6 | Matches Turo host home's top-of-fold. Earnings sums straight from `Booking.ownerPayout` — no AccountingEntry needed (still parked for Tier 8). |
@@ -631,6 +636,58 @@ Once Tier 15 ships and fleet operators are real entities with link relationships
 - Money-split deduction logic (`Booking.ownerPayout` still goes 100% to individual; fleet's management fee is recorded but not deducted) — defers to Tier 8 (accounting)
 - Fleet-initiated link invitations (only owner-initiates in V1) — possible future polish
 - Bidirectional kind switching (admin still mediates rare cases manually) — possible future polish
+
+---
+
+## Tier 17 — Required-docs submission flow (planned)
+
+Today the host create-listing flow ends at "submit for approval", which writes a `PENDING_APPROVAL` row with no photos and no OR/CR. Photos and OR/CR get added on `/host/cars/[id]/edit` after admin approval — leaving admins to approve listings sight-unseen and creating a "approved without docs → host forgets to upload" failure mode.
+
+Tier 17 fixes this by making submission a multi-step wizard: hosts fill basics → upload photos → upload OR/CR → submit for approval. Until those prerequisites are met the listing sits as `DRAFT` and is invisible to admin. By the time admin sees a `PENDING_APPROVAL` listing, the package is complete and reviewable in one pass.
+
+### 17.1 Schema migration `add_listing_draft_status`
+- [ ] No new column needed. `CarListing.status` gains a new permitted value `"DRAFT"` (string union, not a Postgres enum). Default for new create-from-wizard rows is `DRAFT`; rows are flipped to `PENDING_APPROVAL` only by the explicit "Submit for Approval" action when prerequisites are met
+- [ ] Existing `PENDING_APPROVAL` rows untouched (legacy grandfathered)
+- [ ] Type union in `types/index.ts` `ListingStatus` adds `DRAFT = "DRAFT"`
+
+### 17.2 Wizard UI on `/host/cars/new`
+- [ ] Replace the single-form create page with a 3-step wizard: **Basics** → **Photos** → **OR/CR**. Step indicator at top with clickable navigation between completed steps
+- [ ] Step 1 (Basics): the existing create form. On submit, creates the row as `status=DRAFT` and advances to step 2 with the new `listingId` in URL state
+- [ ] Step 2 (Photos): existing `HostListingPhotoGallery` component, ≥1 photo required to advance
+- [ ] Step 3 (OR/CR): existing `HostListingOrCrForm` component. Shows a final "Submit for Approval" CTA that flips status `DRAFT → PENDING_APPROVAL` and redirects to `/host/cars`
+- [ ] Mid-wizard abandonment leaves the row in `DRAFT` status. `/host/cars/new` detects an existing DRAFT for the current host and offers "Resume your draft" instead of starting fresh — or "Discard and start over" to delete it
+
+### 17.3 DRAFT visibility on `/host/cars`
+- [ ] DRAFT cards render in the cars grid with an amber "Continue setup" badge instead of the status badge
+- [ ] Clicking a DRAFT card lands on `/host/cars/[id]/edit` (same page as ACTIVE/PENDING/etc.) — but with a sticky footer CTA "Submit for Approval", enabled only when photos.length ≥ 1 AND `orCrDocumentUrl !== null`. Disabled state shows what's missing: "Add at least 1 photo and OR/CR document to submit"
+- [ ] Submitting flips status `DRAFT → PENDING_APPROVAL` via a new server action `submitListingForApprovalAction` and writes activity log entry `LISTING_SUBMITTED_FOR_APPROVAL`
+
+### 17.4 Public + admin filters exclude DRAFT
+- [ ] `/listings` (public browse), `/availability`, `/calendar`, listing search, etc. — all queries that treat ACTIVE/INACTIVE/MAINTENANCE/etc. as a public-side audience continue to filter DRAFT out (same way they already filter PENDING_APPROVAL out from the public side)
+- [ ] Admin verification queue (`/dashboard` Verification tile + `/owners/[id]` host detail listing rollups) excludes DRAFT — admin only sees `PENDING_APPROVAL` onward. DRAFT is host-private until submitted
+
+### 17.5 Activity log
+- [ ] New action code `LISTING_SUBMITTED_FOR_APPROVAL` — written when host flips DRAFT → PENDING_APPROVAL
+- [ ] `LISTING_CREATED` activity entry now writes at DRAFT-creation (basics step). Description copy reads "Host X started a listing for [Car] — currently in DRAFT" so the audit trail captures both the start of the funnel and the final submission
+- [ ] `LISTING_PHOTO_ADDED` and `LISTING_OR_CR_UPLOADED` continue to write as-is (already cover the wizard's photo + doc steps)
+
+### 17.6 Action-layer enforcement
+- [ ] `submitListingForApprovalAction` re-checks the prerequisites server-side (photos ≥ 1, orCrDocumentUrl present, status === DRAFT, ownership). UI gating is for UX only; this is the trust boundary
+- [ ] Admin approval action (existing `approveListingAction` if present, or whatever fires `status=PENDING_APPROVAL → ACTIVE`) is unchanged — still works on PENDING_APPROVAL listings of either provenance (legacy or wizard-submitted)
+
+### 17.7 Manual test plan in MANUAL-TESTING.md
+- [ ] T17-A: wizard happy path (basics → photos → OR/CR → submit → admin sees full package)
+- [ ] T17-B: abandonment + resume (close mid-wizard, return to /host/cars/new → resume option appears; also accessible via /host/cars DRAFT card)
+- [ ] T17-C: prerequisite gating (Submit for Approval is disabled when photos.length=0 or OR/CR missing; submitting via forge against the action is rejected)
+- [ ] T17-D: legacy PENDING_APPROVAL listings without OR/CR still approve cleanly under old rules
+- [ ] T17-E: DRAFT invisibility (admin /dashboard, /owners/[id], /listings public browse, /availability, /calendar — no DRAFT rows leak)
+
+### Out of scope for Tier 17 (deferred further)
+- Photo minimum > 1 (UX feels excessive at submission; can revisit if admins consistently reject "1 photo" submissions)
+- Pulling availability rules into the wizard (scheduling, not a trust signal — kept post-approval)
+- OCR / document-content validation (current MIME + 5MB checks remain the bar)
+- Backfilling legacy PENDING_APPROVAL rows to require docs (grandfathered — small set, real history)
+- Admin-side "request docs" notification when a DRAFT lingers too long (no notification system yet)
 
 ---
 

@@ -111,6 +111,11 @@ export default async function ListingDetailPage({
     },
   });
 
+  if (listing && listing.status === ListingStatus.DRAFT) {
+    // Tier 17 — DRAFT is host-private until submitted. Public detail
+    // page treats it as 404 same as a non-existent id.
+    notFound();
+  }
   if (!listing) {
     notFound();
   }
