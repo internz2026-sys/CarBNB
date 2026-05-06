@@ -240,15 +240,15 @@ export function NewHostListingForm() {
         </CardContent>
         <CardFooter className="bg-muted/30 border-t border-border px-6 py-4 flex justify-between gap-3 rounded-b-xl border-dashed">
           <p className="text-sm text-muted-foreground max-w-sm">
-            After saving you&apos;ll land on the edit page to upload photos, OR/CR, and set
-            availability. Listing goes live once admin approves it.
+            Saving creates a DRAFT listing. Next you&apos;ll add photos and the OR/CR
+            document, then submit for admin approval.
           </p>
           <div className="flex gap-3">
             <Link className={buttonVariants({ variant: "outline" })} href="/host/cars">
               Cancel
             </Link>
             <Button disabled={pending} type="submit">
-              {pending ? "Submitting..." : "Submit for Approval"}
+              {pending ? "Saving..." : "Continue to Photos"}
             </Button>
           </div>
         </CardFooter>

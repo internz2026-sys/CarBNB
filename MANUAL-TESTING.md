@@ -1944,6 +1944,102 @@ In `CarAvailabilityException`:
 
 ---
 
+## Tier 17 — Required-docs submission flow
+
+Listing creation now goes through a 3-step wizard: basics → photos → OR/CR. New listings start as `DRAFT` and only flip to `PENDING_APPROVAL` via an explicit "Submit for Approval" CTA gated on photos.length ≥ 1 AND OR/CR present. Existing PENDING_APPROVAL listings without OR/CR are grandfathered (admin can still approve them under prior rules).
+
+### Prerequisites
+
+- Three accounts:
+  - **Verified host** — VERIFIED owner who can create listings (clean state — no in-flight DRAFT)
+  - **Admin** — to verify queue + approval flow
+  - One legacy `PENDING_APPROVAL` listing already in the DB without an OR/CR uploaded (created in a prior tier). If you don't have one, create it via Prisma Studio: insert a CarListing row with `status="Pending Approval"` and `orCrDocumentUrl=null`. (Quoted as the enum value, not the schema literal.)
+
+### T17-A — Wizard happy path
+
+**Setup**
+1. Log in as the verified host. Visit `/host/cars`.
+
+**Basics step**
+2. Click **Add Listing** → land on `/host/cars/new`.
+3. Page header explains "Three quick steps". A 3-step indicator renders above the form: Basics (current/blue), Photos (gray), OR/CR (gray).
+4. Bottom button reads **Continue to Photos** (NOT "Submit for Approval").
+5. Fill basics (plate, year, brand, model, color, location, transmission, fuel type, vehicle type, seating, daily price, optional description + features). Click **Continue to Photos**.
+6. Redirected to `/host/cars/[id]/edit`. Status badge reads "Draft". Header subtext says "Draft in progress — finish photos and OR/CR, then submit for admin approval."
+7. Step indicator now shows: Basics ✓ (green check), Photos (current/blue), OR/CR (gray).
+8. Sticky CTA at bottom of page reads "Add at least one photo and the OR/CR document to submit". Submit button is disabled.
+
+**Photos step**
+9. Upload one photo via the photo gallery section. Step indicator updates: Photos ✓ (green check); current step advances to OR/CR.
+10. Sticky CTA copy updates to "Add the OR/CR document to submit". Photos pill in CTA shows ✓.
+
+**OR/CR step**
+11. Upload an OR/CR file (image or PDF). Step indicator updates: OR/CR ✓.
+12. Sticky CTA copy updates to "Ready to submit for approval" with a green check icon. Submit button enabled.
+13. Click **Submit for Approval**. Status flips DRAFT → PENDING_APPROVAL. Sticky footer disappears. Header subtext reads "Waiting on admin approval."
+14. Activity log entry written: `LISTING_SUBMITTED_FOR_APPROVAL · Host [email] submitted listing [Brand Model] ([plate]) for admin approval`.
+
+**Admin sees the full package**
+15. Log in as admin. Visit `/dashboard`. Verification tile shows count incremented; the new listing appears in pending listings rollup.
+16. Visit `/car-listings`. Filter to "Pending" — the new listing appears with photo, plate, owner. Click View → `/car-listings/[id]` shows photos, OR/CR document link, all basics. Approve.
+
+### T17-B — Abandonment + resume
+
+**Setup**
+1. As the verified host, ensure you have NO existing DRAFT (clear via Prisma Studio if needed).
+
+**Mid-wizard close**
+2. Visit `/host/cars/new`. Fill basics. Click **Continue to Photos**.
+3. Land on `/host/cars/[id]/edit` (DRAFT). Upload one photo. Don't upload OR/CR.
+4. Close the tab without submitting.
+
+**Resume via /host/cars/new**
+5. Visit `/host/cars/new` again. You're immediately redirected to `/host/cars/[draft-id]/edit` — the existing DRAFT. (The page detects an in-flight DRAFT and avoids creating a duplicate.)
+6. Step indicator: Basics ✓, Photos ✓, OR/CR (current). Sticky CTA disabled with "Add the OR/CR document to submit".
+
+**Resume via /host/cars list**
+7. Visit `/host/cars`. The DRAFT row appears in the grid with an amber "Continue setup" badge in place of the usual status badge.
+8. Click the DRAFT card → land on `/host/cars/[id]/edit` with the same wizard scaffolding visible.
+9. Upload OR/CR. Submit for Approval. Status flips to PENDING_APPROVAL.
+
+### T17-C — Prerequisite gating (UI + action layer)
+
+**UI gating**
+1. As the host, create a fresh DRAFT (basics submitted, no photos, no OR/CR yet).
+2. The Submit for Approval button in the sticky footer is disabled. Hover/inspect — copy reads "Add at least one photo and the OR/CR document to submit".
+3. Upload only the OR/CR (no photo). Button stays disabled — copy reads "Add at least one photo to submit".
+4. Remove the OR/CR; upload a photo. Button stays disabled — copy reads "Add the OR/CR document to submit".
+
+**Action-layer gating (forge attempt)**
+5. *(Forge.)* With the DRAFT in any incomplete state (e.g. no photos), manually call `submitListingForApprovalAction` against the DRAFT id. Server rejects: *"Add at least one photo before submitting for approval."* (or the OR/CR variant if photos exist but OR/CR doesn't).
+6. *(Forge.)* Try to call the same action against a listing whose status is already `PENDING_APPROVAL` or `ACTIVE`. Server rejects: *"This listing is already \"…\" — only DRAFT listings can be submitted."*
+
+### T17-D — Legacy listings grandfathered
+
+**Setup**
+1. As admin, visit `/car-listings` with the "Pending" filter active. The legacy PENDING_APPROVAL listing without OR/CR appears.
+
+**Approval still works**
+2. Open the legacy listing detail. The OR/CR section shows "no document on file" but other fields are filled.
+3. Click Approve. Status flips PENDING_APPROVAL → ACTIVE under the existing rules — no new gating. (The new prereq check only fires on DRAFT → PENDING_APPROVAL. Once a listing reaches PENDING_APPROVAL by any path, admin approval is unchanged.)
+
+### T17-E — DRAFT invisibility
+
+DRAFT listings should NOT leak into any audience-facing or admin-queue surface. With one DRAFT in the DB owned by the verified host, confirm each:
+
+1. **Public `/listings`** — DRAFT does NOT appear in the browse grid. Search + filters can't surface it.
+2. **Public `/listings/[id]` direct URL** — pasting the DRAFT id into the URL returns 404 (`notFound`).
+3. **Admin `/dashboard`** — Active Listings tile excludes DRAFT (already filtered to ACTIVE). Pending Approvals tile excludes DRAFT (already filtered to PENDING_APPROVAL). Verification queue excludes DRAFT.
+4. **Admin `/car-listings`** — DRAFT does NOT appear in the table or summary counts. Clicking a status filter chip never lands on DRAFT.
+5. **Admin `/car-listings/[id]` direct URL** — admin pasting the DRAFT id returns 404.
+6. **Admin `/availability`** + **`/calendar`** — DRAFT does not appear in the listing list or filters (already filtered to ACTIVE/PENDING/BOOKED).
+7. **Admin `/bookings/new`** — listing dropdown does not include DRAFT (already filtered to ACTIVE).
+8. **Public `/hosts/[id]`** + **`/fleets`** — DRAFTs do not contribute to listing counts or grids (already filtered to ACTIVE).
+
+The host themselves (on `/host/cars` and `/host/cars/[id]/edit`) is the only surface where a DRAFT is visible.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

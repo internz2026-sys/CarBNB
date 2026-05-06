@@ -53,7 +53,11 @@ export default async function CarListingsPage({
   const trimmedSearch = search?.trim() ?? "";
   const activeStatus = STATUS_FILTERS.find((s) => s.key === status);
 
-  const where: Prisma.CarListingWhereInput = {};
+  // Tier 17 — DRAFT listings are host-private until they hit Submit
+  // for Approval. Exclude from admin views entirely.
+  const where: Prisma.CarListingWhereInput = {
+    status: { not: ListingStatus.DRAFT },
+  };
   if (trimmedSearch) {
     where.OR = [
       { brand: { contains: trimmedSearch, mode: "insensitive" } },
@@ -67,7 +71,10 @@ export default async function CarListingsPage({
   }
 
   const [allListings, filteredListings] = await Promise.all([
-    db.carListing.findMany({ orderBy: { createdAt: "desc" } }),
+    db.carListing.findMany({
+      where: { status: { not: ListingStatus.DRAFT } },
+      orderBy: { createdAt: "desc" },
+    }),
     db.carListing.findMany({
       where,
       orderBy: { createdAt: "desc" },

@@ -24,7 +24,15 @@ const statusBadgeStyles: Record<string, string> = {
   [ListingStatus.SUSPENDED]: "bg-red-100 text-red-700",
   [ListingStatus.REJECTED]: "bg-red-100 text-red-700",
   [ListingStatus.UNAVAILABLE]: "bg-gray-100 text-gray-700",
+  [ListingStatus.DRAFT]: "bg-amber-100 text-amber-800",
 };
+
+// Tier 17 — DRAFT cards show "Continue setup" instead of the raw
+// status name. Other statuses fall through to the badge map above.
+function statusLabel(status: string) {
+  if (status === ListingStatus.DRAFT) return "Continue setup";
+  return status;
+}
 
 export default async function HostCarsPage() {
   const session = await getCurrentHost();
@@ -169,7 +177,7 @@ export default async function HostCarsPage() {
                         statusBadgeStyles[car.status] ?? "bg-gray-100 text-gray-700",
                       )}
                     >
-                      {car.status}
+                      {statusLabel(car.status)}
                     </span>
                     {car.managedByOwnerName ? (
                       <span className="absolute right-3 top-3 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-800">
