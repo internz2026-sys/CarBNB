@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signupAction, type AuthState } from "@/app/(auth)/actions";
+import { GoogleSignInButton } from "@/app/(auth)/google-sign-in-button";
 
 type SignupRole = "host" | "customer";
 
@@ -25,47 +26,57 @@ export function SignupForm({
   );
 
   return (
-    <form action={formAction} className="space-y-4">
-      <input type="hidden" name="role" value={role} />
-      <div className="space-y-2">
-        <Label htmlFor={`${role}-name`}>Full Name</Label>
-        <Input
-          id={`${role}-name`}
-          name="fullName"
-          placeholder={namePlaceholder}
-          required
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${role}-email`}>Email</Label>
-        <Input
-          id={`${role}-email`}
-          name="email"
-          placeholder={emailPlaceholder}
-          required
-          type="email"
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor={`${role}-password`}>Password</Label>
-        <Input
-          id={`${role}-password`}
-          name="password"
-          required
-          type="password"
-          minLength={8}
-        />
+    <div className="space-y-4">
+      <GoogleSignInButton intent="signup" role={role} />
+
+      <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
+        <span className="h-px flex-1 bg-border" />
+        <span>or sign up with email</span>
+        <span className="h-px flex-1 bg-border" />
       </div>
 
-      {state?.error ? (
-        <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
-          {state.error}
+      <form action={formAction} className="space-y-4">
+        <input type="hidden" name="role" value={role} />
+        <div className="space-y-2">
+          <Label htmlFor={`${role}-name`}>Full Name</Label>
+          <Input
+            id={`${role}-name`}
+            name="fullName"
+            placeholder={namePlaceholder}
+            required
+          />
         </div>
-      ) : null}
+        <div className="space-y-2">
+          <Label htmlFor={`${role}-email`}>Email</Label>
+          <Input
+            id={`${role}-email`}
+            name="email"
+            placeholder={emailPlaceholder}
+            required
+            type="email"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`${role}-password`}>Password</Label>
+          <Input
+            id={`${role}-password`}
+            name="password"
+            required
+            type="password"
+            minLength={8}
+          />
+        </div>
 
-      <Button className="mt-2 w-full" disabled={pending} type="submit">
-        {pending ? "Creating account..." : submitLabel}
-      </Button>
-    </form>
+        {state?.error ? (
+          <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
+            {state.error}
+          </div>
+        ) : null}
+
+        <Button className="mt-2 w-full" disabled={pending} type="submit">
+          {pending ? "Creating account..." : submitLabel}
+        </Button>
+      </form>
+    </div>
   );
 }

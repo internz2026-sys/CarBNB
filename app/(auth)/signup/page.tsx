@@ -7,7 +7,26 @@ import { cn } from "@/lib/utils";
 import { SignupForm } from "./signup-form";
 import { HostSignupFlow } from "./host-signup-flow";
 
-export default function SignupPage() {
+// Mirrors LOGIN_ERROR_MESSAGES on the login page, but the wording here
+// nudges existing-account users toward the login page instead of a tab.
+const SIGNUP_ERROR_MESSAGES: Record<string, string> = {
+  oauth_failed:
+    "Couldn't complete Google sign-in. Please try again, or sign up with email.",
+  customer_exists:
+    "This email is already registered as a customer. Please log in instead.",
+  host_exists:
+    "This email is already registered as a host. Please log in instead.",
+  account_exists:
+    "An account with this email already exists. Please log in instead.",
+};
+
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
+  const errorMessage = error ? SIGNUP_ERROR_MESSAGES[error] : null;
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto max-w-6xl">
@@ -46,6 +65,12 @@ export default function SignupPage() {
             each role its own sign-up path from the start.
           </p>
         </div>
+
+        {errorMessage ? (
+          <div className="mb-6 max-w-2xl rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
+            {errorMessage}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Host signup card — Tier 15 makes this a 2-step flow:
