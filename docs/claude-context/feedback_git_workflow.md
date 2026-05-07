@@ -14,7 +14,7 @@ originSessionId: 45d3bee8-9adb-4917-a307-4510d175a6bd
 
 *Starting a new tier (Tier N ≥ 3):*
 1. Merge `tier-(N-1)-complete` → `main` and `git push origin main` → Vercel auto-deploys the previous tier
-2. Smoke-test the affected flows on `car-bnb-eta.vercel.app` (use the stable alias, not the deployment-specific URL)
+2. Smoke-test the affected flows on `drivexp-eta.vercel.app` (use the stable alias, not the deployment-specific URL)
 3. Branch `tier-N-complete` from `tier-(N-1)-complete` and start building
 
 *Ending a tier:*
@@ -36,5 +36,5 @@ originSessionId: 45d3bee8-9adb-4917-a307-4510d175a6bd
 - The policy reversal happened so the colleague taking over MVP testing has visibility into tier scope, decisions, and the polish punchlist.
 
 *URL convention:*
-- For prod smoke-testing, always use `https://car-bnb-eta.vercel.app` (stable alias)
+- For prod smoke-testing, always use `https://drivexp-eta.vercel.app` (stable alias)
 - Ignore the `car-<hash>-...-projects.vercel.app` URL — that's the immutable deployment permalink, not the public URL

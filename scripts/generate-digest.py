@@ -103,7 +103,7 @@ def build():
     add_title(
         doc,
         "carBNB — Product & Operational Digest",
-        "Prepared from the live site (car-bnb-eta.vercel.app) and the product source. Written for non-technical readers.",
+        "Prepared from the live site (drivexp-eta.vercel.app) and the product source. Written for non-technical readers.",
     )
     add_hr(doc)
 
