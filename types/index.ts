@@ -8,6 +8,15 @@ export enum OwnerStatus {
   INACTIVE = "Inactive",
 }
 
+// Tier 19 — customer identity verification. Mirrors OwnerStatus shape so the
+// admin verification UI can reuse status badges + transition copy.
+export enum CustomerStatus {
+  PENDING = "Pending Verification",
+  VERIFIED = "Verified",
+  SUSPENDED = "Suspended",
+  REJECTED = "Rejected",
+}
+
 export enum TransactionType {
   COMMISSION = "Commission",
   REFUND = "Refund",

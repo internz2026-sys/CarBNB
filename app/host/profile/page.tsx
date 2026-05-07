@@ -4,8 +4,10 @@ import { ExternalLink } from "lucide-react";
 import { db } from "@/lib/db";
 import { OwnerStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
+import { getOwnerDocumentSignedUrl } from "@/lib/owner-documents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BioForm } from "./bio-form";
+import { HostDocumentsSection } from "./host-documents-section";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +20,36 @@ export default async function HostProfilePage() {
   // last saved (the session helper caches a snapshot).
   const owner = await db.owner.findUnique({
     where: { id: session.owner.id },
-    select: { id: true, fullName: true, status: true, bio: true },
+    select: {
+      id: true,
+      fullName: true,
+      status: true,
+      bio: true,
+      kind: true,
+      idDocumentUrl: true,
+      licenseDocumentUrl: true,
+      businessRegistrationDocumentUrl: true,
+    },
   });
   if (!owner) redirect("/");
 
   const isVerified = owner.status === OwnerStatus.VERIFIED;
+  const ownerKind: "INDIVIDUAL" | "FLEET" =
+    owner.kind === "FLEET" ? "FLEET" : "INDIVIDUAL";
+
+  const [idSignedUrl, licenseSignedUrl, businessRegSignedUrl] = await Promise.all([
+    getOwnerDocumentSignedUrl(owner.idDocumentUrl),
+    getOwnerDocumentSignedUrl(owner.licenseDocumentUrl),
+    getOwnerDocumentSignedUrl(owner.businessRegistrationDocumentUrl),
+  ]);
+
+  // "All required docs present" — derives the admin-queue submission state
+  // without needing a separate column. INDIVIDUAL needs ID + license; FLEET
+  // needs ID + business registration.
+  const allDocsPresent =
+    ownerKind === "FLEET"
+      ? Boolean(owner.idDocumentUrl && owner.businessRegistrationDocumentUrl)
+      : Boolean(owner.idDocumentUrl && owner.licenseDocumentUrl);
 
   return (
     <div className="max-w-3xl mx-auto pb-10 space-y-6">
@@ -74,6 +101,15 @@ export default async function HostProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <HostDocumentsSection
+        allDocsPresent={allDocsPresent}
+        businessRegSignedUrl={businessRegSignedUrl}
+        idSignedUrl={idSignedUrl}
+        licenseSignedUrl={licenseSignedUrl}
+        ownerKind={ownerKind}
+        ownerStatus={owner.status}
+      />
 
       <BioForm initialBio={owner.bio ?? ""} />
     </div>

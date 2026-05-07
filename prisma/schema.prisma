@@ -46,6 +46,11 @@ model Owner {
                               // used for ID verification). Helps independent owners
                               // pick a fleet near them when requesting management.
 
+  // Tier 19 — fleet legitimacy doc. Required for FLEET hosts before admin
+  // can verify (DTI / SEC / similar PH business registration certificate).
+  // Null for INDIVIDUAL kind. Stored in private `owner-documents` bucket.
+  businessRegistrationDocumentUrl String?
+
   cars            CarListing[]
   bookings        Booking[]
   ownerPayouts    OwnerPayout[]
@@ -99,6 +104,15 @@ model Customer {
   email         String   @unique
   address       String?
   totalBookings Int      @default(0)
+
+  // Tier 19 — identity verification. New customers default to PENDING; the
+  // migration backfilled all pre-existing rows to VERIFIED (grandfathering
+  // decision in BACKLOG.md). Booking creation is server-side gated on
+  // status = VERIFIED. Admin reviews documents and flips PENDING → VERIFIED
+  // or REJECTED on the per-customer admin page.
+  status              String  @default("PENDING") // VERIFIED, PENDING, SUSPENDED, REJECTED
+  idDocumentUrl       String? // private `customer-documents` bucket
+  licenseDocumentUrl  String? // private `customer-documents` bucket
 
   bookings      Booking[]
   reviews       Review[]

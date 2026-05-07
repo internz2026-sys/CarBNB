@@ -308,11 +308,18 @@ export async function updateOwnerAction(
 // private `owner-documents` bucket at `/{ownerId}/{docKind}.{ext}`.
 // ─────────────────────────────────────────────────────────────────────────
 
-type DocKind = "id" | "license";
+// Tier 19 — added "business_registration" for FLEET host onboarding docs
+// (DTI / SEC certificate). Stored in the same `owner-documents` bucket; field
+// only meaningful when owner.kind = FLEET.
+type DocKind = "id" | "license" | "business_registration";
 
-const DOC_FIELD_MAP: Record<DocKind, "idDocumentUrl" | "licenseDocumentUrl"> = {
+const DOC_FIELD_MAP: Record<
+  DocKind,
+  "idDocumentUrl" | "licenseDocumentUrl" | "businessRegistrationDocumentUrl"
+> = {
   id: "idDocumentUrl",
   license: "licenseDocumentUrl",
+  business_registration: "businessRegistrationDocumentUrl",
 };
 
 export async function uploadOwnerDocumentAction(
@@ -326,7 +333,11 @@ export async function uploadOwnerDocumentAction(
   const file = formData.get("file");
 
   if (!ownerId) return { error: "Missing owner id." };
-  if (docKindRaw !== "id" && docKindRaw !== "license") {
+  if (
+    docKindRaw !== "id" &&
+    docKindRaw !== "license" &&
+    docKindRaw !== "business_registration"
+  ) {
     return { error: "Invalid document kind." };
   }
   const docKind = docKindRaw as DocKind;
@@ -376,10 +387,22 @@ export async function uploadOwnerDocumentAction(
     data: { [field]: objectPath },
   });
 
+  const docLabel =
+    docKind === "id"
+      ? "government ID"
+      : docKind === "license"
+        ? "driver's license"
+        : "business registration document";
+  const activityCode =
+    docKind === "id"
+      ? "OWNER_ID_UPLOADED"
+      : docKind === "license"
+        ? "OWNER_LICENSE_UPLOADED"
+        : "OWNER_BUSINESS_REG_UPLOADED";
   await db.activityLogEntry.create({
     data: {
-      action: docKind === "id" ? "OWNER_ID_UPLOADED" : "OWNER_LICENSE_UPLOADED",
-      description: `Admin ${admin.email} uploaded ${docKind === "id" ? "government ID" : "driver's license"} for owner ${owner.fullName} (${owner.email})`,
+      action: activityCode,
+      description: `Admin ${admin.email} uploaded ${docLabel} for owner ${owner.fullName} (${owner.email})`,
       type: "owner",
     },
   });
