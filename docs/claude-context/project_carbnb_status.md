@@ -4,7 +4,7 @@ description: Tiers 1-7 + 7.1 admin-polish live in prod (main at d826875); ready 
 type: project
 originSessionId: 45d3bee8-9adb-4917-a307-4510d175a6bd
 ---
-CarBNB is a peer-to-peer car rental marketplace for the Philippines (PHP currency, local brands). Next.js 16 + React 19 + Tailwind 4 + Prisma 7 + PostgreSQL (Docker locally / Supabase in prod). Hosted on Vercel at car-bnb-eta.vercel.app, repo at github.com/internz2026-sys/CarBNB.
+CarBNB is a peer-to-peer car rental marketplace for the Philippines (PHP currency, local brands). Next.js 16 + React 19 + Tailwind 4 + Prisma 7 + PostgreSQL (Docker locally / Supabase in prod). Hosted on Vercel at drivexp-eta.vercel.app, repo at github.com/internz2026-sys/CarBNB.
 
 **State as of 2026-04-24 (end of Tier 7 build-out):**
 
@@ -19,7 +19,7 @@ CarBNB is a peer-to-peer car rental marketplace for the Philippines (PHP currenc
 - `tier-7.1-admin-polish` → `d826875` — responsive fixes for 14" 16:10 laptops (dashboard hero sections, tile grids, calendar widget overflow, layout padding). Commits `c3d38da` + `d826875`.
 - `main` is at `d826875` (Tiers 1-7 + 7.1 live in prod).
 
-**Prod state (car-bnb-eta.vercel.app):**
+**Prod state (drivexp-eta.vercel.app):**
 - Runs Tier 1-7 code (merged early at user request; Vercel build triggered 2026-04-24).
 - Prod Supabase schema: 5 migrations applied. `20260423174042_add_platform_settings` applies via postinstall on this deploy. `getPlatformSettings()` self-creates the singleton row on first call, so no manual seeding needed.
 - Prod DB seeded with full mock dataset + `admin@carbnb.com` in both User table and Supabase Auth.

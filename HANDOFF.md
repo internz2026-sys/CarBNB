@@ -115,7 +115,7 @@ The five variables together are the entire secret payload for this project. Ther
 
 ## 7. Where the project is right now
 
-- **Live in prod**: Tiers 1–7 + 7.1 (admin polish for 14" laptops). `main` is at commit `d826875` (Tier 7.1) plus the docs-and-handoff commits that came after. car-bnb-eta.vercel.app reflects this.
+- **Live in prod**: Tiers 1–7 + 7.1 (admin polish for 14" laptops). `main` is at commit `d826875` (Tier 7.1) plus the docs-and-handoff commits that came after. drivexp-eta.vercel.app reflects this.
 - **Next up**: Tier 8 — accounting flow wiring (`AccountingEntry` rows on mark-paid), `OwnerPayout` batch processing + commission invoicing, replace mock data on `/accounting` and `/reports` with real Prisma reads. Plus the carry-forward "admin dashboard visual polish" item from Tier 7 testing.
 - **Recommended kickoff**:
   1. `git checkout main && git pull`

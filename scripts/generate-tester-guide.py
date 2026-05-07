@@ -147,7 +147,7 @@ def build():
         doc,
         [
             ("The live production URL is ", False),
-            ("https://car-bnb-eta.vercel.app", True),
+            ("https://drivexp-eta.vercel.app", True),
             (". This is what you will demo. All the steps in this guide run there unless noted.", False),
         ],
     )
@@ -192,7 +192,7 @@ def build():
         doc,
         [
             ("Go to ", False),
-            ("https://car-bnb-eta.vercel.app/login", True),
+            ("https://drivexp-eta.vercel.app/login", True),
             (". Use either tab — admin accounts bypass tab validation.", False),
         ],
         expected="After login you land on /dashboard.",

@@ -142,6 +142,7 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Proximity model for fleet picker | **Decision deferred to tier start.** Two paths logged: (A) lat/lng + geocoding for true distance, (B) district / neighborhood text fields with substring match at sub-city. Recommended staging: B first, A as a polish tier afterward | Tier 18+ candidate | Full lat/lng is a bigger commitment than the demo currently warrants. B captures the UX win without API integration; A becomes a clean follow-up if and when needed. |
 | Proximity as suggestion vs filter | **Suggestion only.** Picker sorts by proximity and badges matches with "Near you"; never filters non-matching fleets out | Tier 18+ candidate | Owners may have legitimate reasons to pick a non-local fleet (existing relationship, better fee, better reputation). Don't paternalize the choice. |
 | Where proximity applies | **Picker on `/host/cars/[id]/edit` only** — not the public `/fleets` directory | Tier 18+ candidate | `/fleets` is a marketing surface for all roles; "near you" assumes the viewer has a car to link. The picker is the actionable surface where sort order matters. |
+| Vercel project rename | **Renamed Vercel project `car-bnb` → `drivexp` and added `drivexp-eta.vercel.app` as the canonical production URL** on 2026-05-07. Old `car-bnb-eta.vercel.app` retained as alias during transition. GitHub repo (`internz2026-sys/CarBNB`) and codebase brand unchanged | Pre-Tier-18 housekeeping | URL now aligns with the public-facing "DriveXP" naming the UI already uses. Cosmetic only — no functional change. Old URL kept to avoid breaking any shared demo links. |
 | Listing submission flow | **Multi-step wizard: basics → photos → OR/CR.** New `DRAFT` status (string union, no Postgres enum); listing rows start as DRAFT and only flip to PENDING_APPROVAL via explicit "Submit for Approval" CTA gated on photos.length ≥ 1 AND orCrDocumentUrl present. Action-layer re-checks the prerequisites server-side | Tier 17 | Today's flow lets admins approve listings sight-unseen. Bundling docs with submission matches Turo / Airbnb expectations and eliminates the "approved without docs → never uploaded" failure mode. DRAFT keeps mid-wizard rows out of admin's queue. |
 | Photo requirement at submission | **Require ≥1 photo before DRAFT can flip to PENDING_APPROVAL.** No upper bound at submission; existing 8-photo cap stays. No minimum count beyond 1 | Tier 17 | Admin needs visual context to approve. ≥1 is the lowest bar that still gives admin something to look at; phones make this cheap. Higher minimums add submission friction without proportional review value. |
 | Availability in submission flow | **Stays post-approval — NOT pulled into the wizard.** Hosts set weekly rules + exceptions on `/host/cars/[id]/edit` after admin approves the listing | Tier 17 | Availability is scheduling, not a trust signal. Including it lengthens the wizard with no admin-decision value. Same as today's behavior — only the wizard ordering of basics/photos/OR/CR is new. |
@@ -185,7 +186,7 @@ Not addressed in Tiers 2–7; plan to add dedicated tiers later:
 
 ## Session 0 — Already complete
 
-- ✅ Vercel CLI installed, logged in, project linked (`internz2026-9884s-projects/car-bnb`)
+- ✅ Vercel CLI installed, logged in, project linked (`internz2026-9884s-projects/drivexp`)
 - ✅ `.env.local` pulled from Vercel, upgraded to pooled `DATABASE_URL` + session-mode `DIRECT_URL`
 - ✅ Prisma 7 adapter (`@prisma/adapter-pg` + `pg`) installed and wired in [lib/db.ts](lib/db.ts)
 - ✅ [prisma/schema.prisma](prisma/schema.prisma) updated for Prisma 7 (url/directUrl removed from schema)
@@ -246,7 +247,7 @@ Not addressed in Tiers 2–7; plan to add dedicated tiers later:
 - **Update Vercel production DB URL**: dashboard → Settings → Environment Variables → update `DATABASE_URL` to the pooled Supabase format (and add `DIRECT_URL` if not present)
 - **Add Prisma migrate to Vercel build**: update [package.json](package.json) `postinstall` to `prisma migrate deploy && prisma generate` so migrations apply on production deploys
 - Push to main → Vercel builds → runs `prisma migrate deploy` against Supabase → deploys
-- Visit car-bnb-eta.vercel.app/owners → should render 1 owner (Supabase has 1 seeded row from colleague)
+- Visit drivexp-eta.vercel.app/owners → should render 1 owner (Supabase has 1 seeded row from colleague)
 - **This is the end-to-end validation**. Nothing else ships until this works.
 
 ### 1.6 Fix broken references discovered in audit (quick wins) ✅
@@ -777,7 +778,7 @@ Currently the plumbing works but has gaps that will bite as we start shipping re
 ### Pipeline mechanics
 
 - **Git**: User works on `master`, but Vercel's production branch is `main` (per Vercel default). **Pushing to `master` may not trigger production deploy.** Need to verify branch setting in Vercel dashboard; if `main` is production, rename or merge accordingly.
-- **Vercel deploys**: Push to production branch → auto-deploy to car-bnb-eta.vercel.app. PRs / other branches → preview deploys at unique URLs.
+- **Vercel deploys**: Push to production branch → auto-deploy to drivexp-eta.vercel.app. PRs / other branches → preview deploys at unique URLs.
 - **Env vars**: Local `.env.local` ≠ Vercel env vars automatically. Local `DATABASE_URL` points at Docker; Vercel's `DATABASE_URL` points at Supabase pooler. Keep them semantically equivalent but literally different.
 - **Auth works identically** in both envs because they share the same Supabase Auth. A user signed up locally IS a real Supabase user — they can log in to production too. Good for testing, but be mindful when creating test users.
 
@@ -819,7 +820,7 @@ Buckets live per-Supabase-project.
 ### Smoke test after every deploy
 
 Minimal post-deploy check:
-1. Visit car-bnb-eta.vercel.app → loads without 500 error
+1. Visit drivexp-eta.vercel.app → loads without 500 error
 2. Click into a listing detail page → data renders
 3. Try to access `/dashboard` unauthenticated → redirects to `/login` (after Tier 1 done)
 4. Login as admin → reaches dashboard
@@ -855,7 +856,7 @@ Minimal post-deploy check:
 
 ## Verification checkpoints
 
-**After Tier 1**: Visit `/owners` locally and on car-bnb-eta.vercel.app — list renders from Supabase, not mock file. Login as a test user succeeds and redirects correctly per role. Unauthenticated visit to `/dashboard` redirects to `/login`.
+**After Tier 1**: Visit `/owners` locally and on drivexp-eta.vercel.app — list renders from Supabase, not mock file. Login as a test user succeeds and redirects correctly per role. Unauthenticated visit to `/dashboard` redirects to `/login`.
 
 **After Tier 2**: Create a new owner via `/owners/new` → appears in list → approve → status changes in Supabase dashboard. Host self-signup creates pending owner.
 
