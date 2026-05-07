@@ -139,6 +139,9 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Booking authority on fleet-managed cars | **Fleet exclusive once a `FleetCarLink` is `ACTIVE`.** Confirm / Reject / Start / Complete actions only render on the fleet's host dashboard. Individual owner sees the booking on their own `/host/bookings` list as informational (no action buttons). Admin retains exclusive MarkPaid + Cancel | Tier 16 | Cleanest division. The whole point of linking is "I delegated the operational side to the fleet" — letting the individual still act would defeat the purpose. Two-cook conflicts already prevented by the Tier 13 status guard pattern. |
 | Booking chat counterparty on fleet-managed cars | **Customer ↔ fleet operator** is the active chat. The booking's `senderRole` for host-side messages becomes the fleet's role. Individual owner sees the chat history read-only on their `/host/bookings/[id]` (admin-style read-only). One thread per booking — Tier 14 invariant preserved | Tier 16 | Matches "fleet exclusive" booking authority. Avoids 3-way chat (overkill in V1). The individual stays visible to the customer via the dual-host name display, but the operational counterparty is whoever's actually managing. |
 | Availability authority on fleet-managed cars | **Both individual and fleet can edit weekly rules and exceptions.** New `CarAvailabilityException.addedByOwnerId` field tracks who created each exception (audit trail). `requireHost()` server-action gate extends to accept "fleet operator on a car with active link to that fleet" | Tier 16 | Both have legitimate scheduling concerns: individual blocks for personal use, fleet blocks for maintenance / detailing. The union of all blocks applies — no real conflict. Activity log + the new column preserve audit trail. |
+| Proximity model for fleet picker | **Decision deferred to tier start.** Two paths logged: (A) lat/lng + geocoding for true distance, (B) district / neighborhood text fields with substring match at sub-city. Recommended staging: B first, A as a polish tier afterward | Tier 18+ candidate | Full lat/lng is a bigger commitment than the demo currently warrants. B captures the UX win without API integration; A becomes a clean follow-up if and when needed. |
+| Proximity as suggestion vs filter | **Suggestion only.** Picker sorts by proximity and badges matches with "Near you"; never filters non-matching fleets out | Tier 18+ candidate | Owners may have legitimate reasons to pick a non-local fleet (existing relationship, better fee, better reputation). Don't paternalize the choice. |
+| Where proximity applies | **Picker on `/host/cars/[id]/edit` only** — not the public `/fleets` directory | Tier 18+ candidate | `/fleets` is a marketing surface for all roles; "near you" assumes the viewer has a car to link. The picker is the actionable surface where sort order matters. |
 | Listing submission flow | **Multi-step wizard: basics → photos → OR/CR.** New `DRAFT` status (string union, no Postgres enum); listing rows start as DRAFT and only flip to PENDING_APPROVAL via explicit "Submit for Approval" CTA gated on photos.length ≥ 1 AND orCrDocumentUrl present. Action-layer re-checks the prerequisites server-side | Tier 17 | Today's flow lets admins approve listings sight-unseen. Bundling docs with submission matches Turo / Airbnb expectations and eliminates the "approved without docs → never uploaded" failure mode. DRAFT keeps mid-wizard rows out of admin's queue. |
 | Photo requirement at submission | **Require ≥1 photo before DRAFT can flip to PENDING_APPROVAL.** No upper bound at submission; existing 8-photo cap stays. No minimum count beyond 1 | Tier 17 | Admin needs visual context to approve. ≥1 is the lowest bar that still gives admin something to look at; phones make this cheap. Higher minimums add submission friction without proportional review value. |
 | Availability in submission flow | **Stays post-approval — NOT pulled into the wizard.** Hosts set weekly rules + exceptions on `/host/cars/[id]/edit` after admin approves the listing | Tier 17 | Availability is scheduling, not a trust signal. Including it lengthens the wizard with no admin-decision value. Same as today's behavior — only the wizard ordering of basics/photos/OR/CR is new. |
@@ -688,6 +691,46 @@ Tier 17 fixes this by making submission a multi-step wizard: hosts fill basics �
 - OCR / document-content validation (current MIME + 5MB checks remain the bar)
 - Backfilling legacy PENDING_APPROVAL rows to require docs (grandfathered — small set, real history)
 - Admin-side "request docs" notification when a DRAFT lingers too long (no notification system yet)
+
+---
+
+## Tier 18+ candidate — Proximity-aware fleet matching (parked)
+
+When an independent owner opens the fleet picker on `/host/cars/[id]/edit`, the dropdown today sorts by `createdAt` and shows the fleet's free-text `serviceArea` as a label. That doesn't help an owner in Jaro distinguish a Jaro fleet from a Mandurriao fleet inside the same Iloilo City row — both fleets read "Iloilo City" at the city granularity we capture.
+
+**Intent**: when the owner opens the picker, sort fleets by proximity to the owner's car location and badge the closest as "Near you". The owner can still pick any verified fleet — proximity is a *suggestion*, not a filter.
+
+### Two implementation paths to choose from at tier start
+
+**A. True lat/lng geolocation.**
+- Schema: `CarListing.latitude/longitude` (Float?), `Owner.latitude/longitude` (Float?, FLEET-only — fleet's primary shop location)
+- Geocoding: text address → lat/lng via Nominatim (free, dev-friendly) or Mapbox / Google for prod
+- Distance: Haversine formula (~10-line helper, no library)
+- UI: address picker on car create + fleet signup (Leaflet for the optional map)
+- Picker: distance-sorted with "X km away" labels
+- Highest fidelity. Biggest scope — geocoding integration, address picker UI, env-var-managed API source, backfill story for legacy rows.
+
+**B. Neighborhood / district text fields.**
+- Schema: `CarListing.district String?`, `Owner.districts String[]`
+- Owner types "Jaro"; fleet types "Jaro, Mandurriao"
+- Substring match at district-first, city-fallback
+- No API, no map, no schema lat/lng
+- Doesn't compute actual distance — just *"this fleet operates in your district"* → *"this fleet operates in your city"* → *"somewhere else"*
+- ~20% of the work for ~80% of the practical value. Future-compatible: if a later tier adds lat/lng, the district field stays useful as a label.
+
+**Recommended staging**: ship **B first**, treat **A** as a polish tier afterward — unless user opts straight into A.
+
+### Out of scope regardless of A or B
+- Hard-filtering of non-matching fleets (proximity is a sort/badge only)
+- Legacy listings + fleets without coords/districts: handled either by best-effort geocoding pass or by sorting "no proximity data" rows last
+- Custom map-drawing tools for service-area polygons (a fleet's polygon would be more accurate than a single point, but adds heavy UI)
+
+### Files that would be touched at tier start
+- [prisma/schema.prisma](prisma/schema.prisma) — schema additions for the chosen path
+- [app/host/cars/[id]/edit/fleet-link-section.tsx](app/host/cars/[id]/edit/fleet-link-section.tsx) — picker UI changes
+- [app/host/cars/[id]/edit/page.tsx](app/host/cars/[id]/edit/page.tsx) — fleet-options query (sort + selected fields)
+- [app/(auth)/signup/host-signup-flow.tsx](app/(auth)/signup/host-signup-flow.tsx) — fleet signup gains district picker (B) or address picker (A)
+- New `lib/geo/` helpers for distance + match logic
 
 ---
 
