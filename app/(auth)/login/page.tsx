@@ -3,13 +3,32 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
 
+// Maps `?error=...` codes the OAuth callback emits when Google sign-in lands
+// somewhere it can't proceed. Kept here so the strings live alongside the
+// page that renders them and aren't smeared across the codebase.
+const LOGIN_ERROR_MESSAGES: Record<string, string> = {
+  oauth_failed:
+    "Couldn't complete Google sign-in. Please try again, or sign in with email.",
+  customer_exists:
+    "This email is registered as a customer account. Please use the Customer tab.",
+  host_exists:
+    "This email is registered as a host account. Please use the Host tab.",
+  no_account:
+    "No account found for that email. Please sign up first.",
+};
+
 // searchParams is a Promise in Next.js 16, hence the async component.
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ signedUp?: string; redirectTo?: string }>;
+  searchParams: Promise<{
+    signedUp?: string;
+    redirectTo?: string;
+    error?: string;
+  }>;
 }) {
-  const { signedUp, redirectTo } = await searchParams;
+  const { signedUp, redirectTo, error } = await searchParams;
+  const errorMessage = error ? LOGIN_ERROR_MESSAGES[error] : null;
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dae2ff_0%,#f2f3ff_40%,#faf8ff_100%)] px-4 py-8 sm:px-6 lg:py-12">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-6 lg:grid-cols-[1.05fr_0.95fr]">
@@ -89,6 +108,11 @@ export default async function LoginPage({
           </CardHeader>
 
           <CardContent className="px-6 pb-0 sm:px-8">
+            {errorMessage ? (
+              <div className="mb-4 rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
+                {errorMessage}
+              </div>
+            ) : null}
             {signedUp ? (
               <div className="mb-4 rounded-[1rem] bg-emerald-50 p-3 text-sm text-emerald-800">
                 Account created. Check your email to confirm, then sign in below.

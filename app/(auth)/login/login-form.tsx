@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { loginAction, type AuthState } from "@/app/(auth)/actions";
+import { GoogleSignInButton } from "@/app/(auth)/google-sign-in-button";
 
 const roleContent = {
   host: {
@@ -49,9 +50,7 @@ export function LoginForm({ redirectTo, role }: { redirectTo?: string; role: Rol
   );
 
   return (
-    <form action={formAction} className="space-y-6 pt-6">
-      <input name="selectedRole" type="hidden" value={role} />
-      {redirectTo ? <input name="redirectTo" type="hidden" value={redirectTo} /> : null}
+    <div className="space-y-6 pt-6">
       <div className="rounded-[1.5rem] bg-surface-container p-4 shadow-[0_10px_28px_rgb(19_27_46_/_0.04)]">
         <div className="flex items-start gap-3">
           <div className="grid size-11 shrink-0 place-items-center rounded-[1rem] bg-surface-container-lowest text-primary shadow-[0_8px_20px_rgb(19_27_46_/_0.05)]">
@@ -68,44 +67,57 @@ export function LoginForm({ redirectTo, role }: { redirectTo?: string; role: Rol
         </div>
       </div>
 
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor={config.emailId}>{config.emailLabel}</Label>
-          <Input
-            defaultValue={state?.email ?? ""}
-            id={config.emailId}
-            name="email"
-            placeholder={config.emailPlaceholder}
-            required
-            type="email"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor={config.passwordId}>Password</Label>
-          <Input id={config.passwordId} name="password" required type="password" />
-        </div>
+      <GoogleSignInButton intent="login" role={role} />
+
+      <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-on-surface-variant">
+        <span className="h-px flex-1 bg-border" />
+        <span>or sign in with email</span>
+        <span className="h-px flex-1 bg-border" />
       </div>
 
-      {state?.error ? (
-        <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
-          {state.error}
-        </div>
-      ) : null}
+      <form action={formAction} className="space-y-6">
+        <input name="selectedRole" type="hidden" value={role} />
+        {redirectTo ? <input name="redirectTo" type="hidden" value={redirectTo} /> : null}
 
-      <div className="space-y-3">
-        <Button className="w-full" disabled={pending} type="submit">
-          {pending ? "Signing in..." : config.submitLabel}
-        </Button>
-        <Link
-          className={cn(
-            buttonVariants({ variant: "outline" }),
-            "w-full border-border bg-surface-container-lowest text-primary hover:bg-surface-container",
-          )}
-          href={config.signUpHref}
-        >
-          {config.signUpLabel}
-        </Link>
-      </div>
-    </form>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor={config.emailId}>{config.emailLabel}</Label>
+            <Input
+              defaultValue={state?.email ?? ""}
+              id={config.emailId}
+              name="email"
+              placeholder={config.emailPlaceholder}
+              required
+              type="email"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={config.passwordId}>Password</Label>
+            <Input id={config.passwordId} name="password" required type="password" />
+          </div>
+        </div>
+
+        {state?.error ? (
+          <div className="rounded-[1rem] bg-red-50 p-3 text-sm text-red-700">
+            {state.error}
+          </div>
+        ) : null}
+
+        <div className="space-y-3">
+          <Button className="w-full" disabled={pending} type="submit">
+            {pending ? "Signing in..." : config.submitLabel}
+          </Button>
+          <Link
+            className={cn(
+              buttonVariants({ variant: "outline" }),
+              "w-full border-border bg-surface-container-lowest text-primary hover:bg-surface-container",
+            )}
+            href={config.signUpHref}
+          >
+            {config.signUpLabel}
+          </Link>
+        </div>
+      </form>
+    </div>
   );
 }

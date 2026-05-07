@@ -1,5 +1,6 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/lib/db";
@@ -37,6 +38,45 @@ export async function logoutAction(): Promise<void> {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+// Builds the absolute origin (protocol + host) for the current request so we
+// can hand Supabase a same-origin `redirectTo`. Uses `x-forwarded-proto` when
+// present (Vercel always sets it); falls back to http for localhost.
+async function currentOrigin(): Promise<string> {
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const proto =
+    h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+// Kicks off the Google OAuth flow. The `intent` (`login` | `signup`),
+// `role` (`host` | `customer`), and optional `kind` (`INDIVIDUAL` | `FLEET`)
+// flow through Google to `/auth/callback` so it can apply the right routing
+// rules (tab-mismatch on login, role-collision on signup, completion form for
+// brand-new users).
+export async function signInWithGoogleAction(formData: FormData): Promise<void> {
+  const intent = formData.get("intent");
+  const role = formData.get("role");
+  const kind = formData.get("kind");
+
+  const callback = new URL("/auth/callback", await currentOrigin());
+  if (typeof intent === "string") callback.searchParams.set("intent", intent);
+  if (typeof role === "string") callback.searchParams.set("role", role);
+  if (typeof kind === "string") callback.searchParams.set("kind", kind);
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: callback.toString() },
+  });
+
+  if (error || !data.url) {
+    const target = intent === "signup" ? "/signup" : "/login";
+    redirect(`${target}?error=oauth_failed`);
+  }
+  redirect(data.url);
 }
 
 export async function loginAction(
@@ -182,5 +222,90 @@ export async function signupAction(
       },
     });
     redirect("/login?signedUp=customer");
+  }
+}
+
+// Completes the profile for a user who just signed up via Google OAuth. The
+// Supabase session is already established (the OAuth callback exchanged the
+// code) — this action only fills in the role-specific Owner/Customer row.
+// Email comes from the authenticated session, never from the form, so a user
+// can't claim a different identity.
+export async function completeProfileAction(
+  _prevState: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const role = formData.get("role") as SignupRole | null;
+  const fullName = String(formData.get("fullName") ?? "").trim();
+  const kindRaw = formData.get("kind");
+  const kind = kindRaw === "FLEET" ? "FLEET" : "INDIVIDUAL";
+  const companyName = String(formData.get("companyName") ?? "").trim();
+  const businessRegNumber = String(formData.get("businessRegNumber") ?? "").trim();
+  const serviceArea = String(formData.get("serviceArea") ?? "").trim();
+
+  if (role !== "host" && role !== "customer") {
+    return { error: "Invalid signup role." };
+  }
+  if (!fullName) {
+    return { error: "Full name is required." };
+  }
+  if (role === "host" && kind === "FLEET") {
+    if (!companyName || !businessRegNumber) {
+      return {
+        error:
+          "Fleet operators must provide a company name and business registration number.",
+      };
+    }
+    if (!serviceArea) {
+      return {
+        error:
+          "Fleet operators must provide a service area so independent owners can find you.",
+      };
+    }
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email) {
+    redirect("/login");
+  }
+  const email = user.email.toLowerCase();
+
+  // Re-check collisions server-side: the callback already routed away if a
+  // record existed, but a race between two completion attempts on the same
+  // tab would otherwise sneak through.
+  const [existingOwner, existingCustomer] = await Promise.all([
+    db.owner.findUnique({ where: { email } }),
+    db.customer.findUnique({ where: { email } }),
+  ]);
+  if (existingOwner || existingCustomer) {
+    return { error: "An account with this email already exists." };
+  }
+
+  if (role === "host") {
+    await db.owner.create({
+      data: {
+        fullName,
+        email,
+        contactNumber: "",
+        address: "",
+        status: OwnerStatus.PENDING,
+        kind,
+        companyName: kind === "FLEET" ? companyName : null,
+        businessRegNumber: kind === "FLEET" ? businessRegNumber : null,
+        serviceArea: kind === "FLEET" ? serviceArea : null,
+      },
+    });
+    redirect("/host/dashboard");
+  } else {
+    await db.customer.create({
+      data: {
+        fullName,
+        email,
+        contactNumber: "",
+      },
+    });
+    redirect("/account");
   }
 }

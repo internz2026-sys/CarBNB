@@ -2040,6 +2040,138 @@ The host themselves (on `/host/cars` and `/host/cars/[id]/edit`) is the only sur
 
 ---
 
+## Tier 18 — Sign in with Google
+
+OAuth signup + login alongside the existing email/password flow. Google authenticates the user; the role-specific Owner/Customer row is captured on a `/signup/complete` page after the OAuth round trip. Implicit linking on shared email is allowed (Supabase default — same email across providers = same auth user). Wrong tab (login) and wrong card (signup) mirror the email/password tab-mismatch behavior already in `loginAction`/`signupAction`. Admins keep using email/password only.
+
+### Prerequisites
+
+- Three real Gmail accounts you can sign in to. The Google OAuth client is in **Testing** mode, so each Gmail must already be on the **Test users** list in Google Cloud Console → APIs & Services → OAuth consent screen → Audience.
+- An existing **email/password customer** (e.g. `customer-1@email.com`) and existing **email/password host** (e.g. `host-2@email.com`) for the regression check in T18-F.
+- Fresh `auth.users` rows for the test Gmails — if any of them already have an Owner/Customer row in Supabase from earlier testing, delete those rows first (Supabase → Authentication → Users → ⋮ → Delete user) so each T18-A/B/C run starts from "no record exists".
+- For local testing: `npm run dev` running on `http://localhost:3000` with Docker Postgres up.
+
+### T18-A — Customer signup via Google (new user)
+
+**Setup**
+1. Pick a Gmail that has no existing record in your local DB (`gmail-A@gmail.com` for the rest of this section).
+2. Open `/signup` in a fresh browser / incognito window.
+
+**Trigger**
+3. On the **Customer Sign-up** card, click **Sign up with Google**. The button shows a Google logo and label.
+4. You bounce to `accounts.google.com`, pick the Gmail, click through the consent screen.
+5. You land on `/signup/complete?role=customer`. The page header reads **Finish your customer profile**, the badge says "Customer Account", and the email shown matches the Gmail you used.
+6. **Full Name** is pre-filled from your Google profile. No company / business / service-area fields are visible (those only appear for FLEET).
+7. Confirm or edit the name, click **Create Customer Account**.
+8. You're redirected to `/account`. Logged in as that customer.
+
+**Verify**
+9. Supabase → Authentication → Users → the Gmail row exists with **Provider: Google** / Provider type: Social.
+10. Prisma Studio → `Customer` table → a row exists with the Gmail and the full name you submitted. `contactNumber` is the empty string (matches email/password signup behavior).
+11. No Owner row exists for that Gmail.
+
+### T18-B — Independent Host signup via Google (new user)
+
+**Setup**
+1. Pick a different Gmail with no existing record (`gmail-B@gmail.com`).
+2. Open `/signup` in a fresh browser / incognito window.
+
+**Trigger**
+3. On the **Host Sign-up** card, click the **Independent Car Owner** button.
+4. The form panel appears. Click **Sign up with Google**.
+5. Sign in via Google with `gmail-B@gmail.com`.
+6. Land on `/signup/complete?role=host&kind=INDIVIDUAL`. Header reads **Finish your host profile**, badge says "Independent Car Owner".
+7. **Full Name** is pre-filled. No company/business/service-area fields visible.
+8. Click **Create Host Account**.
+9. Redirected to `/host/dashboard`. The dashboard shows the "awaiting approval" / pending state because the new Owner row defaults to `OwnerStatus.PENDING`.
+
+**Verify**
+10. Prisma Studio → `Owner` table → row exists with Gmail, full name, `kind = INDIVIDUAL`, `status = "Pending Verification"`, `companyName = null`, `businessRegNumber = null`, `serviceArea = null`.
+11. Supabase auth.users has the Gmail row with Provider = Google.
+12. No Customer row for the same Gmail.
+
+### T18-C — Fleet Host signup via Google (new user)
+
+**Setup**
+1. Pick a third unused Gmail (`gmail-C@gmail.com`).
+2. Open `/signup` in a fresh browser / incognito window.
+
+**Trigger**
+3. On the **Host Sign-up** card, click the **Registered Car Rental Operator** button.
+4. The form panel appears. Click **Sign up with Google**.
+5. Sign in via Google with `gmail-C@gmail.com`.
+6. Land on `/signup/complete?role=host&kind=FLEET`. Header reads **Finish your fleet operator profile**, badge says "Fleet Operator".
+7. **Company Name**, **Business Registration Number**, and **Service Area** fields are visible and required. Full Name is pre-filled.
+
+**Validation gating**
+8. Leave Company Name empty, fill the other fields, click submit. Inline form error: *"Fleet operators must provide a company name and business registration number."*
+9. Fill all fleet fields and submit again.
+10. Redirected to `/host/dashboard` (pending state).
+
+**Verify**
+11. Prisma Studio → `Owner` table → row exists with `kind = FLEET`, `companyName`, `businessRegNumber`, and `serviceArea` populated; `status = "Pending Verification"`.
+
+### T18-D — Login via Google (existing user, implicit linking)
+
+This section verifies that an account previously signed up via email/password can later sign in via Google with the same email and land in the right place. Per the cross-cutting decision, Supabase merges identities on the same email by default — the existing role-row is preserved.
+
+**Setup**
+1. Sign up a fresh user via the existing email/password Customer card with email `gmail-D@gmail.com` and any password (`gmail-D` should be a real Gmail you own + an addable test user). After signup you're at `/login?signedUp=customer`. Don't log in yet.
+2. Open `/login` and switch to the Customer tab.
+
+**Login via Google**
+3. Click **Continue with Google** and pick `gmail-D@gmail.com` (you've never signed in to this app via Google before, so Google may show the consent screen).
+4. You land on `/account` — directly into the customer dashboard. **Not** on `/signup/complete`.
+
+**Verify**
+5. Supabase → Authentication → Users → click the `gmail-D@gmail.com` row → **Identities** section shows **two providers attached: `email` and `google`**. (One auth user; two identities.)
+6. Prisma `Customer` table still has exactly one row for `gmail-D@gmail.com` (no duplicate created).
+
+**Repeat for host**
+7. Repeat steps 1–6 with a Gmail signed up as an Independent host. Step 4 lands on `/host/dashboard`. Step 5 same identity-merging behavior. Confirm a single Owner row, no duplicate.
+
+### T18-E — Wrong tab / wrong card blocks
+
+This section verifies that role-mismatch errors fire on Google flows the same way they do on email/password flows. Reuse the customer-account Gmail from T18-D as `gmail-D@gmail.com` (already a Customer in your DB).
+
+**Wrong tab on login**
+1. Open `/login` and switch to the **Host** tab (not Customer).
+2. Click **Continue with Google** and sign in with `gmail-D@gmail.com`.
+3. You're bounced back to `/login` with a red banner reading: *"This email is registered as a customer account. Please use the Customer tab."*
+4. The Supabase session is **signed out** (no leftover cookie). Refreshing `/account` redirects to `/login`.
+
+**Wrong card on signup**
+5. Open `/signup` in a fresh window.
+6. Click **Sign up with Google** on the **Host card → Independent Car Owner**.
+7. Sign in with `gmail-D@gmail.com` (already a Customer).
+8. Bounced to `/signup` with a red banner: *"This email is already registered as a customer. Please log in instead."*
+9. No new Owner row was created.
+
+**Same-role collision on signup**
+10. From `/signup`, click **Sign up with Google** on the **Customer card** with `gmail-D@gmail.com`.
+11. Bounced to `/signup` with: *"An account with this email already exists. Please log in instead."*
+
+**Login with no account**
+12. From `/login` Customer tab, click **Continue with Google** with a Gmail that has never signed up (`gmail-NEW@gmail.com`).
+13. Bounced to `/login` with: *"No account found for that email. Please sign up first."*
+14. Supabase auth.users may briefly show a `gmail-NEW@gmail.com` row — that's the OAuth artifact. Delete it before re-running the test.
+
+### T18-F — Email/password regression (unchanged)
+
+Quick sweep to confirm nothing in the existing email/password flow broke.
+
+1. **Admin login** — log in as `admin@carbnb.com` via either tab with the existing password. Redirects to `/dashboard`. Top user menu shows admin.
+2. **Existing host login** — log in as `host-2@email.com` (or whichever existing dummy host) via the Host tab. Redirects to `/host/dashboard`.
+3. **Existing customer login** — log in as `customer-1@email.com` via the Customer tab. Redirects to `/account`.
+4. **Tab mismatch on email/password** — try `customer-1@email.com` + correct password on the **Host tab**. Inline form error: *"This email is registered as a customer account. Please use the Customer tab."* (Wording matches today's behavior.)
+5. **Email/password Independent host signup** — sign up `host-99@email.com` via Independent Host card with email/password. Lands at `/login?signedUp=host`.
+6. **Email/password Fleet signup** — sign up `fleet-99@email.com` via Fleet card with email/password + company name + business reg + service area. Lands at `/login?signedUp=fleet`.
+7. **Email/password Customer signup** — sign up `customer-99@email.com` via Customer card. Lands at `/login?signedUp=customer`.
+
+If all 7 steps work, the email/password path is unaffected by the Tier 18 work.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:
