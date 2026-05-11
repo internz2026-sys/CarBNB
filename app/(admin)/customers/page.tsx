@@ -1,19 +1,37 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Eye, Search, Users } from "lucide-react";
+import { Eye, Search, ShieldCheck, Users } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
+import { CustomerStatus } from "@/types";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
+// URL-friendly status keys → canonical enum values, mirroring /owners.
+const STATUS_FILTERS: { key: string; label: string; value: CustomerStatus }[] = [
+  { key: "pending", label: "Pending", value: CustomerStatus.PENDING },
+  { key: "verified", label: "Verified", value: CustomerStatus.VERIFIED },
+  { key: "rejected", label: "Rejected", value: CustomerStatus.REJECTED },
+  { key: "suspended", label: "Suspended", value: CustomerStatus.SUSPENDED },
+];
+
+const statusBadgeStyles: Record<string, string> = {
+  [CustomerStatus.VERIFIED]: "bg-emerald-500/15 text-emerald-700",
+  [CustomerStatus.PENDING]: "bg-amber-500/15 text-amber-700",
+  [CustomerStatus.REJECTED]: "bg-red-500/15 text-red-700",
+  [CustomerStatus.SUSPENDED]: "bg-red-500/15 text-red-700",
+};
+const defaultStatusBadgeStyle = "bg-muted text-muted-foreground";
+
 export default async function CustomersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string }>;
+  searchParams: Promise<{ search?: string; status?: string }>;
 }) {
-  const { search } = await searchParams;
+  const { search, status } = await searchParams;
   const trimmedSearch = search?.trim() ?? "";
+  const activeStatus = STATUS_FILTERS.find((s) => s.key === status);
 
   const where: Prisma.CustomerWhereInput = {};
   if (trimmedSearch) {
@@ -23,8 +41,11 @@ export default async function CustomersPage({
       { contactNumber: { contains: trimmedSearch, mode: "insensitive" } },
     ];
   }
+  if (activeStatus) {
+    where.status = activeStatus.value;
+  }
 
-  const [customers, totalCount, totalBookingsAgg] = await Promise.all([
+  const [customers, totalCount, totalBookingsAgg, pendingVerificationCount] = await Promise.all([
     db.customer.findMany({
       where,
       orderBy: { createdAt: "desc" },
@@ -44,9 +65,16 @@ export default async function CustomersPage({
     }),
     db.customer.count(),
     db.booking.count(),
+    db.customer.count({
+      where: {
+        status: CustomerStatus.PENDING,
+        idDocumentUrl: { not: null },
+        licenseDocumentUrl: { not: null },
+      },
+    }),
   ]);
 
-  const isFiltered = Boolean(trimmedSearch);
+  const isFiltered = Boolean(trimmedSearch || activeStatus);
 
   return (
     <section className="rounded-[2rem] bg-[linear-gradient(180deg,#faf8ff_0%,#eaedff_100%)] px-5 py-6 shadow-[0_8px_40px_rgb(19_27_46_/_0.06)] sm:px-7 sm:py-7">
@@ -60,12 +88,18 @@ export default async function CustomersPage({
           </p>
         </div>
 
-        <div className="grid gap-5 sm:grid-cols-2">
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryCard
             hint="Registered renters"
             icon={<Users className="size-4" />}
             label="Total customers"
             value={totalCount}
+          />
+          <SummaryCard
+            hint="Awaiting verification review"
+            icon={<ShieldCheck className="size-4" />}
+            label="Pending verification"
+            value={pendingVerificationCount}
           />
           <SummaryCard
             hint="All-time across all customers"
@@ -95,7 +129,28 @@ export default async function CustomersPage({
                 placeholder="Search by name, email, or phone..."
                 type="text"
               />
+              {activeStatus ? (
+                <input name="status" type="hidden" value={activeStatus.key} />
+              ) : null}
             </form>
+          </div>
+
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <FilterChip
+              active={!activeStatus}
+              label="All"
+              search={trimmedSearch}
+              statusKey={null}
+            />
+            {STATUS_FILTERS.map((s) => (
+              <FilterChip
+                active={activeStatus?.key === s.key}
+                key={s.key}
+                label={s.label}
+                search={trimmedSearch}
+                statusKey={s.key}
+              />
+            ))}
           </div>
 
           {customers.length === 0 ? (
@@ -113,6 +168,7 @@ export default async function CustomersPage({
                 <thead>
                   <tr className="text-[0.75rem] font-semibold uppercase tracking-[0.24em] text-on-surface-variant">
                     <th className="pb-3">Name</th>
+                    <th className="pb-3">Status</th>
                     <th className="pb-3">Contact</th>
                     <th className="pb-3 text-right">Bookings</th>
                     <th className="pb-3">Last Booking</th>
@@ -134,6 +190,16 @@ export default async function CustomersPage({
                         <td className="rounded-l-xl py-5 pl-4 pr-4">
                           <p className="text-[1.05rem] font-semibold text-on-surface">{c.fullName}</p>
                           <p className="text-xs text-on-surface-variant">{c.email}</p>
+                        </td>
+                        <td className="py-5 pr-4">
+                          <span
+                            className={cn(
+                              "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                              statusBadgeStyles[c.status] ?? defaultStatusBadgeStyle,
+                            )}
+                          >
+                            {c.status}
+                          </span>
                         </td>
                         <td className="py-5 pr-4 text-sm text-on-surface-variant">
                           {c.contactNumber || "—"}
@@ -175,6 +241,37 @@ export default async function CustomersPage({
         </section>
       </div>
     </section>
+  );
+}
+
+function FilterChip({
+  active,
+  label,
+  search,
+  statusKey,
+}: {
+  active: boolean;
+  label: string;
+  search: string;
+  statusKey: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (search) params.set("search", search);
+  if (statusKey) params.set("status", statusKey);
+  const href = params.toString() ? `/customers?${params.toString()}` : "/customers";
+
+  return (
+    <Link
+      className={cn(
+        "rounded-full px-4 py-1.5 text-xs font-semibold transition",
+        active
+          ? "bg-primary text-on-primary"
+          : "bg-surface-container-highest text-on-surface-variant hover:bg-surface-container",
+      )}
+      href={href}
+    >
+      {label}
+    </Link>
   );
 }
 
