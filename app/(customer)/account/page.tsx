@@ -8,6 +8,7 @@ import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, CustomerStatus, PaymentStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { UserMenu } from "@/components/layout/user-menu";
+import { NotificationBellServer } from "@/components/layout/notification-bell-server";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -87,10 +88,12 @@ export default async function CustomerAccountPage() {
             <Link className="text-sm font-semibold text-on-surface-variant hover:text-primary" href="/listings">
               Browse cars
             </Link>
+            <NotificationBellServer />
             <UserMenu
               fullName={customer.fullName}
               links={[
                 { label: "My bookings", href: "/account" },
+                { label: "Notifications", href: "/notifications" },
                 { label: "Verification", href: "/account/verification" },
                 { label: "Favorites", href: "/account/favorites" },
               ]}

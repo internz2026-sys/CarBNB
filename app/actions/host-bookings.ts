@@ -11,6 +11,8 @@ import {
   resolveBookingAuthority,
   type BookingAuthority,
 } from "@/lib/host-booking-authority";
+import { notify } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
 import { format } from "date-fns";
 
 export type HostBookingActionState =
@@ -139,6 +141,26 @@ export async function hostConfirmBookingAction(
       type: "booking",
     },
   });
+
+  // Tier 20 — notify the customer their booking is confirmed.
+  const customer = await db.customer.findUnique({
+    where: { id: booking.customerId },
+    select: { email: true, fullName: true },
+  });
+  if (customer) {
+    const byLabelForCustomer =
+      scope.actorKind === "fleet" ? scope.actorDisplayName : "Your host";
+    await notify({
+      recipientEmail: customer.email,
+      recipientRole: "customer",
+      recipientName: customer.fullName,
+      type: NotificationType.BOOKING_CONFIRMED,
+      title: `Booking confirmed · ${booking.carName}`,
+      body: `${byLabelForCustomer} confirmed your booking on the ${booking.carName} for ${format(booking.pickupDate, "MMM d")} → ${format(booking.returnDate, "MMM d, yyyy")}. Cash on pickup at handover.`,
+      linkUrl: `/account/bookings/${bookingId}`,
+      linkLabel: "View booking",
+    });
+  }
 
   revalidatePath("/host/bookings");
   revalidatePath(`/host/bookings/${bookingId}`);
@@ -329,6 +351,24 @@ export async function hostRejectBookingAction(
       type: "booking",
     },
   });
+
+  // Tier 20 — notify the customer their booking was rejected.
+  const rejectedCustomer = await db.customer.findUnique({
+    where: { id: booking.customerId },
+    select: { email: true, fullName: true },
+  });
+  if (rejectedCustomer) {
+    await notify({
+      recipientEmail: rejectedCustomer.email,
+      recipientRole: "customer",
+      recipientName: rejectedCustomer.fullName,
+      type: NotificationType.BOOKING_REJECTED,
+      title: `Booking declined · ${booking.carName}`,
+      body: `Your booking on the ${booking.carName} couldn't be accommodated. No charge — try another listing or different dates.`,
+      linkUrl: "/listings",
+      linkLabel: "Browse other cars",
+    });
+  }
 
   revalidatePath("/host/bookings");
   revalidatePath(`/host/bookings/${bookingId}`);

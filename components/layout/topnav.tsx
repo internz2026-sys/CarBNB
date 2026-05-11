@@ -1,5 +1,6 @@
-import { Bell, MessageSquareMore, Search } from "lucide-react";
+import { MessageSquareMore, Search } from "lucide-react";
 import { UserMenu } from "@/components/layout/user-menu";
+import { NotificationBellServer } from "@/components/layout/notification-bell-server";
 import { getCurrentViewer } from "@/lib/current-user";
 
 export async function Topnav() {
@@ -25,13 +26,7 @@ export async function Topnav() {
           </div>
 
           <div className="ml-auto flex items-center gap-1 sm:gap-3">
-            <button
-              aria-label="Notifications"
-              className="grid size-11 place-items-center rounded-full border-none bg-transparent text-on-surface-variant transition hover:bg-surface-container hover:text-primary"
-              type="button"
-            >
-              <Bell className="size-5" />
-            </button>
+            <NotificationBellServer />
             <button
               aria-label="Messages"
               className="relative grid size-11 place-items-center rounded-full border-none bg-transparent text-on-surface-variant transition hover:bg-surface-container hover:text-primary"
@@ -47,10 +42,14 @@ export async function Topnav() {
                   viewer.kind === "admin"
                     ? [
                         { label: "Admin dashboard", href: "/dashboard" },
+                        { label: "Notifications", href: "/notifications" },
                         { label: "Platform settings", href: "/settings" },
                         { label: "Browse cars", href: "/listings" },
                       ]
-                    : [{ label: "Browse cars", href: "/listings" }]
+                    : [
+                        { label: "Notifications", href: "/notifications" },
+                        { label: "Browse cars", href: "/listings" },
+                      ]
                 }
                 roleLabel={
                   viewer.kind === "admin" ? "Admin" : viewer.kind === "host" ? "Host" : "Customer"

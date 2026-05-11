@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { BookingStatus } from "@/types";
+import { notify } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
 
 export type ReviewActionState =
   | {
@@ -77,6 +79,7 @@ export async function createReviewAction(
       customerId: true,
       ownerId: true,
       carListingId: true,
+      carName: true,
       status: true,
       review: { select: { id: true } },
     },
@@ -131,6 +134,27 @@ export async function createReviewAction(
       type: "booking",
     },
   });
+
+  // Tier 20 — notify the host that a new review landed.
+  const reviewedOwner = await db.owner.findUnique({
+    where: { id: booking.ownerId },
+    select: { email: true, fullName: true },
+  });
+  if (reviewedOwner) {
+    await notify({
+      recipientEmail: reviewedOwner.email,
+      recipientRole: "host",
+      recipientName: reviewedOwner.fullName,
+      type: NotificationType.REVIEW_POSTED,
+      title: `New ${rating}-star review on ${booking.carName}`,
+      body:
+        comment && comment.length > 0
+          ? `${customer.fullName} left a ${rating}-star review: "${comment.slice(0, 150)}${comment.length > 150 ? "…" : ""}"`
+          : `${customer.fullName} left a ${rating}-star review on the ${booking.carName}.`,
+      linkUrl: `/host/bookings/${booking.id}`,
+      linkLabel: "View review",
+    });
+  }
 
   revalidatePath(`/account/bookings/${booking.id}`);
   revalidatePath(`/listings/${booking.carListingId}`);

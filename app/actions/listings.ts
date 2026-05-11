@@ -12,6 +12,8 @@ import {
   VEHICLE_TYPE_SLUGS,
   VEHICLE_FEATURE_SLUGS,
 } from "@/lib/listing-taxonomy";
+import { notify } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
 
 const CAR_PHOTOS_BUCKET = "car-photos";
 const CAR_DOCUMENTS_BUCKET = "car-documents";
@@ -210,6 +212,46 @@ async function updateListingStatus(
       type: "car",
     },
   });
+
+  // Tier 20 — notify the host on listing approval / suspension. Skip
+  // notification when the listing transitions back to PENDING_APPROVAL or
+  // intermediate states (rare admin actions, no clear host-facing message).
+  if (
+    targetStatus === ListingStatus.ACTIVE ||
+    targetStatus === ListingStatus.SUSPENDED ||
+    targetStatus === ListingStatus.REJECTED
+  ) {
+    const owner = await db.owner.findUnique({
+      where: { id: listing.ownerId },
+      select: { email: true, fullName: true },
+    });
+    if (owner) {
+      const carLabel = `${listing.brand} ${listing.model}`;
+      if (targetStatus === ListingStatus.ACTIVE) {
+        await notify({
+          recipientEmail: owner.email,
+          recipientRole: "host",
+          recipientName: owner.fullName,
+          type: NotificationType.LISTING_APPROVED,
+          title: `Your ${carLabel} is approved`,
+          body: `Your listing for the ${carLabel} (${listing.plateNumber}) is now active and visible to customers.`,
+          linkUrl: `/host/cars/${id}/edit`,
+          linkLabel: "View listing",
+        });
+      } else {
+        await notify({
+          recipientEmail: owner.email,
+          recipientRole: "host",
+          recipientName: owner.fullName,
+          type: NotificationType.LISTING_REJECTED,
+          title: `Your ${carLabel} listing was ${verb}d`,
+          body: `An admin ${verb}d your listing for the ${carLabel} (${listing.plateNumber}). Contact support if you have questions.`,
+          linkUrl: `/host/cars/${id}/edit`,
+          linkLabel: "View listing",
+        });
+      }
+    }
+  }
 
   revalidatePath("/car-listings");
   revalidatePath(`/car-listings/${id}`);
