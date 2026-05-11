@@ -139,9 +139,10 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Booking authority on fleet-managed cars | **Fleet exclusive once a `FleetCarLink` is `ACTIVE`.** Confirm / Reject / Start / Complete actions only render on the fleet's host dashboard. Individual owner sees the booking on their own `/host/bookings` list as informational (no action buttons). Admin retains exclusive MarkPaid + Cancel | Tier 16 | Cleanest division. The whole point of linking is "I delegated the operational side to the fleet" — letting the individual still act would defeat the purpose. Two-cook conflicts already prevented by the Tier 13 status guard pattern. |
 | Booking chat counterparty on fleet-managed cars | **Customer ↔ fleet operator** is the active chat. The booking's `senderRole` for host-side messages becomes the fleet's role. Individual owner sees the chat history read-only on their `/host/bookings/[id]` (admin-style read-only). One thread per booking — Tier 14 invariant preserved | Tier 16 | Matches "fleet exclusive" booking authority. Avoids 3-way chat (overkill in V1). The individual stays visible to the customer via the dual-host name display, but the operational counterparty is whoever's actually managing. |
 | Availability authority on fleet-managed cars | **Both individual and fleet can edit weekly rules and exceptions.** New `CarAvailabilityException.addedByOwnerId` field tracks who created each exception (audit trail). `requireHost()` server-action gate extends to accept "fleet operator on a car with active link to that fleet" | Tier 16 | Both have legitimate scheduling concerns: individual blocks for personal use, fleet blocks for maintenance / detailing. The union of all blocks applies — no real conflict. Activity log + the new column preserve audit trail. |
-| Proximity model for fleet picker | **Decision deferred to tier start.** Two paths logged: (A) lat/lng + geocoding for true distance, (B) district / neighborhood text fields with substring match at sub-city. Recommended staging: B first, A as a polish tier afterward | Tier 18+ candidate | Full lat/lng is a bigger commitment than the demo currently warrants. B captures the UX win without API integration; A becomes a clean follow-up if and when needed. |
-| Proximity as suggestion vs filter | **Suggestion only.** Picker sorts by proximity and badges matches with "Near you"; never filters non-matching fleets out | Tier 18+ candidate | Owners may have legitimate reasons to pick a non-local fleet (existing relationship, better fee, better reputation). Don't paternalize the choice. |
-| Where proximity applies | **Picker on `/host/cars/[id]/edit` only** — not the public `/fleets` directory | Tier 18+ candidate | `/fleets` is a marketing surface for all roles; "near you" assumes the viewer has a car to link. The picker is the actionable surface where sort order matters. |
+| Proximity model for fleet picker | **Interactive Leaflet map with manually-pinned fleet locations.** Switched from earlier text-field path (B) to map-based UX after user described the vision concretely. Fleets pin their primary location on a map at signup; individual hosts see all verified fleets as pins on `/host/cars/[id]/edit` fleet picker | Tier 21 (locked design) | Map visualization is the proximity feature itself — no distance computation needed for V1. Open-source Leaflet + OSM tiles costs $0 and needs no API keys. Manual pin sidesteps the geocoding-service decision entirely. |
+| Proximity as suggestion vs filter | **Visual map only — no distance filter, no sort.** All verified fleets appear as pins regardless of how far they are from the host's car. Hosts decide who to link based on visual proximity + the fleet's profile | Tier 21 (locked design) | Owners may have legitimate reasons to pick a far fleet (existing relationship, better fee, better reputation). The map gives spatial context; the decision stays with the host. Filter UI can be added later if real usage shows it's needed. |
+| Where proximity applies | **Picker on `/host/cars/[id]/edit` AND the public `/fleets` directory both get the map view.** Reuses the same `<FleetPickerMap>` component | Tier 21 (locked design) | Originally scoped picker-only, but reusing the component on /fleets is near-free and turns the marketing directory into a visually-impactful surface for demos. The "link to fleet" CTA only renders on the picker view; /fleets just shows pins + profile links. |
+| Fleet location verification source | **Manual pin at signup (or via /host/profile any time after).** No address-to-coords geocoding API. Pin stored as `Owner.latitude` + `Owner.longitude` (Float?, FLEET-only). Existing fleets prompted to set location on first login after deploy | Tier 21 (locked design) | Avoids the third-party geocoding decision (Nominatim vs Mapbox vs Google) and the env-var management for an API key. Fleet onboarding gains one step but stays self-contained. Distance computation is parked — visual map proximity is enough for V1. |
 | Vercel project rename | **Renamed Vercel project `car-bnb` → `drivexp` and added `drivexp-eta.vercel.app` as the canonical production URL** on 2026-05-07. Old `car-bnb-eta.vercel.app` retained as alias during transition. GitHub repo (`internz2026-sys/CarBNB`) and codebase brand unchanged | Pre-Tier-18 housekeeping | URL now aligns with the public-facing "DriveXP" naming the UI already uses. Cosmetic only — no functional change. Old URL kept to avoid breaking any shared demo links. |
 | Sign in with Google — additive | **Added "Continue with Google" / "Sign up with Google" alongside the existing email/password flow.** Email/password remains fully supported; Google is a second path. Buttons appear on Login (Host + Customer tabs) and Signup (Customer + Independent Host + Fleet Host cards). PKCE flow via `@supabase/ssr` `signInWithOAuth`; server-side code exchange in `app/auth/callback/route.ts` | Tier 18 | Lower-friction onboarding while keeping the dummy-email/password path that's used heavily in dev + manual testing. Additive avoids ripping out a working flow and lets us roll back the buttons without touching the rest. |
 | Identity linking on shared email | **Implicit linking — same email across providers = same Supabase auth user.** If `gmail-X@gmail.com` previously signed up via email/password and later signs in via Google, Supabase attaches a `google` identity to the existing `email` identity under one user_id. Their existing Owner / Customer row is reused (no duplicate created) | Tier 18 | Matches user expectation ("I have one account at this email"). Avoids the "I'm locked out because I forgot which method I used" failure mode. Supabase default behavior — opting out would have required disabling identity linking globally and writing custom merge logic. |
@@ -709,43 +710,96 @@ Tier 17 fixes this by making submission a multi-step wizard: hosts fill basics �
 
 ---
 
-## Tier 18+ candidate — Proximity-aware fleet matching (parked)
+## Tier 21 — Proximity-aware fleet picker (interactive map) — locked design, not yet started
 
-When an independent owner opens the fleet picker on `/host/cars/[id]/edit`, the dropdown today sorts by `createdAt` and shows the fleet's free-text `serviceArea` as a label. That doesn't help an owner in Jaro distinguish a Jaro fleet from a Mandurriao fleet inside the same Iloilo City row — both fleets read "Iloilo City" at the city granularity we capture.
+When an independent owner opens the fleet picker on `/host/cars/[id]/edit`, today's dropdown sorts by `createdAt` with the fleet's free-text `serviceArea` as a label. Owners in different districts can't tell fleets apart at sub-city granularity (a Jaro fleet and a Mandurriao fleet both read "Iloilo City").
 
-**Intent**: when the owner opens the picker, sort fleets by proximity to the owner's car location and badge the closest as "Near you". The owner can still pick any verified fleet — proximity is a *suggestion*, not a filter.
+Tier 21 replaces the dropdown with an **interactive map** showing verified fleet operators as pins across Metro Manila (and beyond). Click a pin → mini-card with the fleet's name, address, and short bio + buttons to view the full profile or link to that fleet.
 
-### Two implementation paths to choose from at tier start
+### Header copy
 
-**A. True lat/lng geolocation.**
-- Schema: `CarListing.latitude/longitude` (Float?), `Owner.latitude/longitude` (Float?, FLEET-only — fleet's primary shop location)
-- Geocoding: text address → lat/lng via Nominatim (free, dev-friendly) or Mapbox / Google for prod
-- Distance: Haversine formula (~10-line helper, no library)
-- UI: address picker on car create + fleet signup (Leaflet for the optional map)
-- Picker: distance-sorted with "X km away" labels
-- Highest fidelity. Biggest scope — geocoding integration, address picker UI, env-var-managed API source, backfill story for legacy rows.
+> *"Select a fleet operator near you to link your car"*
 
-**B. Neighborhood / district text fields.**
-- Schema: `CarListing.district String?`, `Owner.districts String[]`
-- Owner types "Jaro"; fleet types "Jaro, Mandurriao"
-- Substring match at district-first, city-fallback
-- No API, no map, no schema lat/lng
-- Doesn't compute actual distance — just *"this fleet operates in your district"* → *"this fleet operates in your city"* → *"somewhere else"*
-- ~20% of the work for ~80% of the practical value. Future-compatible: if a later tier adds lat/lng, the district field stays useful as a label.
+### Stack
 
-**Recommended staging**: ship **B first**, treat **A** as a polish tier afterward — unless user opts straight into A.
+- **Map**: Leaflet + react-leaflet (open source, no API key)
+- **Tiles**: OpenStreetMap (free, requires attribution string)
+- **No third-party geocoding service** — fleets manually pin their primary location on a map at signup (or from /host/profile)
+- **No monthly cost**, no env-var-managed API keys to provision
 
-### Out of scope regardless of A or B
-- Hard-filtering of non-matching fleets (proximity is a sort/badge only)
-- Legacy listings + fleets without coords/districts: handled either by best-effort geocoding pass or by sorting "no proximity data" rows last
-- Custom map-drawing tools for service-area polygons (a fleet's polygon would be more accurate than a single point, but adds heavy UI)
+### Schema
+
+```prisma
+model Owner {
+  // existing fields...
+  latitude   Float?   // FLEET only — primary operating location
+  longitude  Float?
+}
+```
+
+Two nullable columns on Owner. No changes to CarListing (V1 skips per-car coords — see decisions below).
+
+### UX flow
+
+**Fleet operator (one-time):**
+1. At signup completion (or any time later via /host/profile), the FLEET host sees a "Set your location" step.
+2. Map renders centered on Metro Manila with a pin they can drag, or they can click anywhere to drop a pin.
+3. "Save location" persists `latitude` + `longitude` on the Owner row.
+
+**Individual host (picking a fleet):**
+1. On /host/cars/[id]/edit → Fleet Link section → instead of a dropdown, render a map.
+2. Pins for every VERIFIED fleet with a `latitude` set. Fleets without coords appear in a fallback list below the map titled "Other fleets (location not set)".
+3. Click a pin → highlights pin + populates info card below the map: fleet name, address, ★ rating + review count, # of cars managed, first 200 chars of bio.
+4. Info card has two CTAs: **View full profile** → `/hosts/[id]` (current host profile page) · **Link to this fleet** → fires the existing `requestFleetLinkAction`.
+
+### Locked V1 design decisions
+
+1. **Map provider**: Leaflet + OpenStreetMap. No Mapbox / Google Maps (no API keys, no cost).
+2. **Geocoding**: manual pin only at signup. No text → lat/lng service.
+3. **Distance computation**: skipped for V1. Visual map proximity is the feature. Saves needing CarListing coords + Haversine UI. Can add in a follow-up tier with a one-line schema add to CarListing.
+4. **Service-area shape**: single pin per fleet (not a polygon). Matches Turo / Airbnb host marker UX.
+5. **Public `/fleets` directory**: also gets the map view (same component reused). The directory becomes the marketing surface for "look at all our verified fleets on a map."
+6. **Filter vs sort**: proximity is visual only. No "hide fleets > 20km" toggle. Picker doesn't paternalize the host's choice (an owner may have legitimate reasons to pick a far fleet — existing relationship, better fee, etc).
+7. **Legacy fleets without coords**: shown in a fallback list below the map (not hidden). On first login after deploy, an amber "Set your location to appear on the fleet map" prompt on `/host/profile` for FLEET kind owners with `latitude IS NULL`.
+8. **Map default center + zoom**: Metro Manila bounding box. Zoom levels permit drilling into Quezon City / Makati / BGC neighborhoods.
+9. **Mobile**: map fills viewport; info card slides up from bottom on pin tap.
+
+### Out of scope for V1 (defer to later tiers)
+
+- Distance labels ("12 km away") — needs CarListing.latitude/longitude
+- "Hide fleets > N km" filter
+- Service-area polygons (instead of single pin)
+- Custom map styling / branding (use default OSM tiles)
+- Per-car pinning (the car's free-text `location` field stays)
+- Search-by-address bar on the map
+- Marker clustering at low zoom (only matters at 50+ fleets — premature)
 
 ### Files that would be touched at tier start
-- [prisma/schema.prisma](prisma/schema.prisma) — schema additions for the chosen path
-- [app/host/cars/[id]/edit/fleet-link-section.tsx](app/host/cars/[id]/edit/fleet-link-section.tsx) — picker UI changes
-- [app/host/cars/[id]/edit/page.tsx](app/host/cars/[id]/edit/page.tsx) — fleet-options query (sort + selected fields)
-- [app/(auth)/signup/host-signup-flow.tsx](app/(auth)/signup/host-signup-flow.tsx) — fleet signup gains district picker (B) or address picker (A)
-- New `lib/geo/` helpers for distance + match logic
+
+- [prisma/schema.prisma](prisma/schema.prisma) — add `latitude` + `longitude` to Owner
+- New `lib/geo.ts` — Haversine helper (kept in lib for future tiers even if not used in V1)
+- New `components/map/fleet-picker-map.tsx` — Leaflet wrapper component
+- New `components/map/location-picker-map.tsx` — pin-drop variant for fleet onboarding
+- [app/(auth)/signup/host-signup-flow.tsx](app/(auth)/signup/host-signup-flow.tsx) — pin-your-location step in FLEET signup
+- [app/(auth)/signup/complete/page.tsx](app/(auth)/signup/complete/page.tsx) + complete-form.tsx — same step in Google signup variant
+- [app/host/profile/page.tsx](app/host/profile/page.tsx) — let existing fleets edit their pinned location
+- [app/host/cars/[id]/edit/fleet-link-section.tsx](app/host/cars/[id]/edit/fleet-link-section.tsx) — swap dropdown for map picker
+- [app/fleets/page.tsx](app/fleets/page.tsx) — add map view to the public directory
+- New `app/actions/host-profile.ts` — `updateFleetLocationAction`
+
+### Notification integration (assumes Tier 20 ships first)
+
+- New trigger: "Fleet location set" → admin gets notification ("Acme Rentals pinned their location on the map")
+- Existing fleet-link request notifications fire naturally (request received → fleet operator bell; request approved/rejected → individual host bell)
+
+### Scope estimate
+
+~1 session (~5-6 hours). Manual tests T21-A through T21-F at the end.
+
+### Dependencies
+
+- **Tier 20 (Notifications)** should ship first so the new map-related events (fleet location set, link request) get notification coverage on day one.
+- No other blocking dependencies — schema migration is additive + nullable, all UI is new.
 
 ---
 
