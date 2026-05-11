@@ -131,6 +131,18 @@ export default async function SignupPage({
             </CardContent>
           </Card>
         </div>
+
+        <p className="mt-10 text-center text-xs text-on-surface-variant">
+          By creating an account, you agree to our{" "}
+          <Link className="font-semibold text-primary hover:underline" href="/terms">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link className="font-semibold text-primary hover:underline" href="/privacy">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </div>
     </div>
   );

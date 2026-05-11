@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
@@ -154,6 +155,17 @@ export default async function LoginPage({
             </div>
             <p className="w-full text-center text-xs text-on-surface-variant">
               DriveXP MVP Prototype Version 1.0.0
+            </p>
+            <p className="w-full text-center text-xs text-on-surface-variant">
+              By signing in, you agree to our{" "}
+              <Link className="font-semibold text-primary hover:underline" href="/terms">
+                Terms of Service
+              </Link>{" "}
+              and{" "}
+              <Link className="font-semibold text-primary hover:underline" href="/privacy">
+                Privacy Policy
+              </Link>
+              .
             </p>
           </CardFooter>
         </Card>
