@@ -48,10 +48,12 @@ export default async function OwnerDetailPage({
     notFound();
   }
 
-  const [idSignedUrl, licenseSignedUrl] = await Promise.all([
+  const [idSignedUrl, licenseSignedUrl, businessRegSignedUrl] = await Promise.all([
     getOwnerDocumentSignedUrl(owner.idDocumentUrl),
     getOwnerDocumentSignedUrl(owner.licenseDocumentUrl),
+    getOwnerDocumentSignedUrl(owner.businessRegistrationDocumentUrl),
   ]);
+  const isFleet = owner.kind === "FLEET";
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -233,11 +235,19 @@ export default async function OwnerDetailPage({
                   storedPath={owner.idDocumentUrl}
                   title="Government ID"
                 />
-                <DocumentCard
-                  signedUrl={licenseSignedUrl}
-                  storedPath={owner.licenseDocumentUrl}
-                  title="Driver's License"
-                />
+                {isFleet ? (
+                  <DocumentCard
+                    signedUrl={businessRegSignedUrl}
+                    storedPath={owner.businessRegistrationDocumentUrl}
+                    title="Business Registration"
+                  />
+                ) : (
+                  <DocumentCard
+                    signedUrl={licenseSignedUrl}
+                    storedPath={owner.licenseDocumentUrl}
+                    title="Driver's License"
+                  />
+                )}
               </div>
             </TabsContent>
           </Tabs>

@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import ScrollReveal from "@/components/marketing/scroll-reveal";
 import { db } from "@/lib/db";
-import { BookingStatus, ListingStatus, OwnerStatus } from "@/types";
+import { BookingStatus, CustomerStatus, ListingStatus, OwnerStatus } from "@/types";
 import { createClient } from "@/utils/supabase/server";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getUnavailableDates } from "@/lib/availability";
@@ -128,14 +128,21 @@ export default async function ListingDetailPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  let viewerKind: "guest" | "customer" | "other" = "guest";
+  let viewerKind: "guest" | "customer" | "customer-unverified" | "other" =
+    "guest";
   let isFavorited = false;
   if (user?.email) {
     const customer = await db.customer.findUnique({
       where: { email: user.email },
-      select: { id: true },
+      select: { id: true, status: true },
     });
-    viewerKind = customer ? "customer" : "other";
+    if (!customer) {
+      viewerKind = "other";
+    } else if (customer.status === CustomerStatus.VERIFIED) {
+      viewerKind = "customer";
+    } else {
+      viewerKind = "customer-unverified";
+    }
     if (customer) {
       const favorite = await db.favorite.findUnique({
         where: {

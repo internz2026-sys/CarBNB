@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/utils/supabase/server";
 import { db } from "@/lib/db";
-import { OwnerStatus } from "@/types";
+import { CustomerStatus, OwnerStatus } from "@/types";
 
 export type AuthState = { error: string; email?: string } | null;
 
@@ -219,6 +219,7 @@ export async function signupAction(
         fullName,
         email,
         contactNumber: "",
+        status: CustomerStatus.PENDING,
       },
     });
     redirect("/login?signedUp=customer");
@@ -304,6 +305,7 @@ export async function completeProfileAction(
         fullName,
         email,
         contactNumber: "",
+        status: CustomerStatus.PENDING,
       },
     });
     redirect("/account");

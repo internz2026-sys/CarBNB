@@ -15,6 +15,7 @@ import {
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import { OwnerStatus } from "@/types";
+import { hasAllRequiredHostDocs } from "@/lib/host-verification";
 import { cn } from "@/lib/utils";
 
 // Admin data must reflect the live DB. Without this, Next.js statically
@@ -93,11 +94,18 @@ export default async function OwnersPage({
   );
   const averageOwnerEarnings = totalOwners > 0 ? totalOwnerEarnings / totalOwners : 0;
   const payoutReadyOwners = allOwners.filter((owner) => Boolean(owner.bankDetails)).length;
-  const needsAttention = allOwners.filter((owner) =>
-    (
-      [OwnerStatus.PENDING, OwnerStatus.SUSPENDED, OwnerStatus.REJECTED] as string[]
-    ).includes(owner.status)
-  );
+  // Tier 19 — PENDING hosts only surface to the verification queue once
+  // they've uploaded all required docs (ID + license for INDIVIDUAL, ID +
+  // business reg for FLEET). SUSPENDED / REJECTED still surface unconditionally
+  // — admin already acted on those rows, no doc check needed.
+  const needsAttention = allOwners.filter((owner) => {
+    if (owner.status === OwnerStatus.PENDING) {
+      return hasAllRequiredHostDocs(owner);
+    }
+    return (
+      [OwnerStatus.SUSPENDED, OwnerStatus.REJECTED] as string[]
+    ).includes(owner.status);
+  });
 
   const isFiltered = Boolean(trimmedSearch || activeStatus);
 
@@ -200,7 +208,14 @@ export default async function OwnersPage({
               </div>
               <div className="flex items-center gap-2 text-base font-semibold text-on-error-container">
                 <AlertTriangle className="size-4" />
-                <span>{allOwners.filter((owner) => owner.status === OwnerStatus.PENDING).length} pending review</span>
+                <span>
+                  {allOwners.filter(
+                    (owner) =>
+                      owner.status === OwnerStatus.PENDING &&
+                      hasAllRequiredHostDocs(owner),
+                  ).length}{" "}
+                  pending review
+                </span>
               </div>
             </article>
           </div>

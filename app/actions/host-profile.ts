@@ -4,7 +4,17 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
+import { createAdminClient } from "@/utils/supabase/admin";
+import { OWNER_DOCUMENTS_BUCKET } from "@/lib/owner-documents";
 import { OwnerStatus } from "@/types";
+
+const MAX_DOC_BYTES = 5 * 1024 * 1024; // 5 MB
+const ALLOWED_DOC_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "application/pdf",
+]);
 
 export type HostProfileActionState =
   | {
@@ -89,5 +99,131 @@ export async function updateHostBioAction(
   }
   revalidatePath("/host/profile");
 
+  return { saved: true };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tier 19 — Host self-service document upload. Mirrors the admin-side
+// `uploadOwnerDocumentAction` shape but auths as the host themselves and
+// only accepts uploads for their own Owner row. Doc kinds:
+//   - "id"                    — gov ID (required for all)
+//   - "license"               — driver's license (INDIVIDUAL only; skipped
+//                               for FLEET per cross-cutting decision #7)
+//   - "business_registration" — DTI / SEC / business reg cert
+//                               (FLEET only)
+// Files land in the existing `owner-documents` bucket at
+// `/{ownerId}/{docKind}.{ext}` so the admin viewer + signed-URL helper
+// already work for them.
+// ─────────────────────────────────────────────────────────────────────────
+
+type HostDocKind = "id" | "license" | "business_registration";
+
+const HOST_DOC_FIELD_MAP: Record<
+  HostDocKind,
+  "idDocumentUrl" | "licenseDocumentUrl" | "businessRegistrationDocumentUrl"
+> = {
+  id: "idDocumentUrl",
+  license: "licenseDocumentUrl",
+  business_registration: "businessRegistrationDocumentUrl",
+};
+
+const HOST_DOC_LABEL_MAP: Record<HostDocKind, string> = {
+  id: "government ID",
+  license: "driver's license",
+  business_registration: "business registration document",
+};
+
+const HOST_DOC_ACTIVITY_MAP: Record<HostDocKind, string> = {
+  id: "HOST_ID_UPLOADED",
+  license: "HOST_LICENSE_UPLOADED",
+  business_registration: "HOST_BUSINESS_REG_UPLOADED",
+};
+
+export async function uploadHostDocumentAction(
+  _prev: HostProfileActionState,
+  formData: FormData,
+): Promise<HostProfileActionState> {
+  let owner: Awaited<ReturnType<typeof requireOwner>>;
+  try {
+    owner = await requireOwner();
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Authentication required.",
+    };
+  }
+
+  const docKindRaw = String(formData.get("docKind") ?? "").trim();
+  const file = formData.get("file");
+
+  if (
+    docKindRaw !== "id" &&
+    docKindRaw !== "license" &&
+    docKindRaw !== "business_registration"
+  ) {
+    return { error: "Invalid document kind." };
+  }
+  const docKind = docKindRaw as HostDocKind;
+
+  // Kind-vs-host-kind validation per cross-cutting decision #7.
+  if (docKind === "license" && owner.kind === "FLEET") {
+    return { error: "Driver's license is not required for fleet operators." };
+  }
+  if (docKind === "business_registration" && owner.kind !== "FLEET") {
+    return {
+      error: "Business registration document is only for fleet operators.",
+    };
+  }
+
+  if (!(file instanceof File) || file.name === "") {
+    return { error: "Please choose a file to upload." };
+  }
+  if (!ALLOWED_DOC_TYPES.has(file.type)) {
+    return { error: "Only JPG, PNG, WebP, or PDF are allowed." };
+  }
+  if (file.size === 0) {
+    return { error: "File is empty." };
+  }
+  if (file.size > MAX_DOC_BYTES) {
+    return { error: "File is too large (5 MB max)." };
+  }
+
+  const extension = file.name.includes(".")
+    ? file.name.split(".").pop()!.toLowerCase()
+    : file.type === "application/pdf"
+      ? "pdf"
+      : file.type === "image/png"
+        ? "png"
+        : file.type === "image/webp"
+          ? "webp"
+          : "jpg";
+  const objectPath = `${owner.id}/${docKind}.${extension}`;
+
+  const supabase = createAdminClient();
+  const { error: uploadError } = await supabase.storage
+    .from(OWNER_DOCUMENTS_BUCKET)
+    .upload(objectPath, file, {
+      upsert: true,
+      contentType: file.type,
+    });
+  if (uploadError) {
+    return { error: `Upload failed: ${uploadError.message}` };
+  }
+
+  const field = HOST_DOC_FIELD_MAP[docKind];
+  await db.owner.update({
+    where: { id: owner.id },
+    data: { [field]: objectPath },
+  });
+
+  await db.activityLogEntry.create({
+    data: {
+      action: HOST_DOC_ACTIVITY_MAP[docKind],
+      description: `Host ${owner.email} uploaded their ${HOST_DOC_LABEL_MAP[docKind]}`,
+      type: "owner",
+    },
+  });
+
+  revalidatePath("/host/profile");
+  revalidatePath(`/owners/${owner.id}`);
   return { saved: true };
 }

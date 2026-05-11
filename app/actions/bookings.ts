@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
-import { BookingStatus, ListingStatus, PaymentStatus } from "@/types";
+import { BookingStatus, CustomerStatus, ListingStatus, PaymentStatus } from "@/types";
 import { checkAvailability } from "@/lib/availability";
 import { calculateBookingAmount } from "@/lib/platform-settings";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
@@ -51,6 +51,16 @@ export async function createBookingAction(
   } catch (err) {
     return {
       error: err instanceof Error ? err.message : "Authentication required.",
+    };
+  }
+
+  // Tier 19 — server-side verification gate. The booking-cta hides the
+  // Reserve UI for unverified customers, but the action is the source of
+  // truth in case someone bypasses the UI (stale tab, direct API call).
+  if (customer.status !== CustomerStatus.VERIFIED) {
+    return {
+      error:
+        "You must verify your identity before booking. Please upload your ID and driver's license at /account/verification.",
     };
   }
 
@@ -109,6 +119,16 @@ export async function createBookingAction(
   );
   const referenceNumber = await generateBookingReference();
 
+  // Tier 19 cross-cutting decision #5 — when the
+  // `autoApproveVerifiedCustomers` setting is on, a verified customer's
+  // booking skips the host's per-booking approval step and goes straight
+  // to CONFIRMED. The customer is already known good; the host doesn't
+  // need to re-vet them per trip. The setting can be toggled off in
+  // /settings without code changes if admin wants stricter behavior.
+  const initialStatus = settings.autoApproveVerifiedCustomers
+    ? BookingStatus.CONFIRMED
+    : BookingStatus.PENDING;
+
   const booking = await db.booking.create({
     data: {
       referenceNumber,
@@ -126,7 +146,7 @@ export async function createBookingAction(
       totalAmount,
       platformFee,
       ownerPayout,
-      status: BookingStatus.PENDING,
+      status: initialStatus,
       paymentStatus: PaymentStatus.UNPAID,
     },
   });

@@ -1,13 +1,14 @@
 import Link from "next/link";
 import Image from "next/image";
 import { format } from "date-fns";
-import { CalendarDays, Car, ChevronRight } from "lucide-react";
+import { CalendarDays, Car, ChevronRight, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
-import { BookingStatus, PaymentStatus } from "@/types";
+import { BookingStatus, CustomerStatus, PaymentStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { UserMenu } from "@/components/layout/user-menu";
+import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,7 @@ export default async function CustomerAccountPage() {
               fullName={customer.fullName}
               links={[
                 { label: "My bookings", href: "/account" },
+                { label: "Verification", href: "/account/verification" },
                 { label: "Favorites", href: "/account/favorites" },
               ]}
               roleLabel="Customer"
@@ -99,6 +101,8 @@ export default async function CustomerAccountPage() {
       </header>
 
       <section className="mx-auto max-w-4xl px-4 pt-10 sm:px-6">
+        <VerificationBanner status={customer.status} />
+
         <div className="mb-8">
           <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl">
             My Bookings
@@ -122,6 +126,81 @@ export default async function CustomerAccountPage() {
           title="Past Bookings"
         />
       </section>
+    </div>
+  );
+}
+
+// Tier 19 — surfaces the customer's verification status above the bookings
+// list. Verified customers see nothing; everyone else sees a status-specific
+// banner with a CTA to the verification page. The booking-creation gate
+// itself lives in app/actions/bookings.ts and the per-listing Reserve UI.
+function VerificationBanner({ status }: { status: string }) {
+  if (status === CustomerStatus.VERIFIED) {
+    return null;
+  }
+
+  if (status === CustomerStatus.SUSPENDED) {
+    return (
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="size-5 shrink-0 text-red-700" />
+          <div>
+            <p className="text-sm font-bold text-red-800">Account suspended</p>
+            <p className="text-xs text-red-700">
+              Booking is paused while your account is suspended. Contact
+              support to reinstate your account.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (status === CustomerStatus.REJECTED) {
+    return (
+      <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-red-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3">
+          <ShieldAlert className="size-5 shrink-0 text-red-700" />
+          <div>
+            <p className="text-sm font-bold text-red-800">Verification rejected</p>
+            <p className="text-xs text-red-700">
+              Please re-upload clear copies of your documents to retry
+              verification.
+            </p>
+          </div>
+        </div>
+        <Link
+          className={cn(buttonVariants({ size: "sm" }), "shrink-0")}
+          href="/account/verification"
+        >
+          Re-upload documents
+        </Link>
+      </div>
+    );
+  }
+
+  // PENDING (canonical) or schema-default "PENDING" string — both treat as
+  // "needs to upload / waiting for review".
+  return (
+    <div className="mb-6 flex flex-col gap-3 rounded-2xl bg-amber-50 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-start gap-3">
+        <ShieldCheck className="size-5 shrink-0 text-amber-700" />
+        <div>
+          <p className="text-sm font-bold text-amber-900">
+            Identity verification required to book
+          </p>
+          <p className="text-xs text-amber-800">
+            Upload your government ID and driver&apos;s license to start
+            booking cars.
+          </p>
+        </div>
+      </div>
+      <Link
+        className={cn(buttonVariants({ size: "sm" }), "shrink-0")}
+        href="/account/verification"
+      >
+        Verify your identity →
+      </Link>
     </div>
   );
 }

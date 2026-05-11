@@ -3,7 +3,7 @@
 import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import type { DateRange } from "react-day-picker";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, ShieldCheck } from "lucide-react";
 
 import { FavoriteButton } from "@/app/listings/favorite-button";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,7 @@ export function BookingCTA({
   listingId: string;
   listingStatus: string;
   unavailableDates: string[];
-  viewerKind: "guest" | "customer" | "other";
+  viewerKind: "guest" | "customer" | "customer-unverified" | "other";
   initialFromIso?: string;
   initialUntilIso?: string;
   isFavorited: boolean;
@@ -92,6 +92,23 @@ export function BookingCTA({
         <div className="flex h-14 w-full items-center justify-center rounded-[1rem] bg-surface-container-highest px-6 text-xs font-semibold text-on-surface-variant sm:text-sm">
           This account isn&apos;t set up as a customer. Use a customer account to reserve.
         </div>
+      </FixedBar>
+    );
+  }
+
+  // Tier 19 — customer exists but hasn't been verified. Replace the
+  // Reserve button with a verification CTA so the booking flow can't
+  // even start until they upload + admin approves.
+  if (viewerKind === "customer-unverified") {
+    return (
+      <FixedBar isFavorited={isFavorited} listingId={listingId}>
+        <Link
+          className="flex h-14 w-full items-center justify-center gap-2 rounded-[1rem] bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-6 font-headline text-sm font-bold text-on-primary shadow-[0_12px_28px_rgb(0_82_204_/_0.2)] transition hover:opacity-95 sm:text-base"
+          href="/account/verification"
+        >
+          <ShieldCheck className="size-5" />
+          Verify your identity to book
+        </Link>
       </FixedBar>
     );
   }

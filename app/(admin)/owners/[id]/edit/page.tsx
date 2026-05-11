@@ -23,9 +23,10 @@ export default async function EditOwnerPage({
     notFound();
   }
 
-  const [idSignedUrl, licenseSignedUrl] = await Promise.all([
+  const [idSignedUrl, licenseSignedUrl, businessRegSignedUrl] = await Promise.all([
     getOwnerDocumentSignedUrl(owner.idDocumentUrl),
     getOwnerDocumentSignedUrl(owner.licenseDocumentUrl),
+    getOwnerDocumentSignedUrl(owner.businessRegistrationDocumentUrl),
   ]);
 
   return (
@@ -61,9 +62,11 @@ export default async function EditOwnerPage({
       />
 
       <OwnerDocumentsForm
+        businessRegSignedUrl={businessRegSignedUrl}
         idSignedUrl={idSignedUrl}
         licenseSignedUrl={licenseSignedUrl}
         ownerId={owner.id}
+        ownerKind={owner.kind === "FLEET" ? "FLEET" : "INDIVIDUAL"}
       />
     </div>
   );

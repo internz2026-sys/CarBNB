@@ -2172,6 +2172,143 @@ If all 7 steps work, the email/password path is unaffected by the Tier 18 work.
 
 ---
 
+## Tier 19 — Identity verification
+
+Identity-document verification for both hosts and customers. Hosts upload ID + driver's license (Independent) or ID + business registration certificate (Fleet) from `/host/profile` and only surface in the admin verification queue once all required docs are present. Customers must upload government ID + driver's license at `/account/verification` and be admin-approved before they can create any booking. New schema columns are migrated with existing customers grandfathered to VERIFIED so prior bookings aren't disrupted.
+
+### Prerequisites
+
+- **`customer-documents` Supabase Storage bucket** must exist (private, no public access). Create via Supabase → Storage → New bucket if not done.
+- One INDIVIDUAL host account (existing dummy works — `host-2@email.com`).
+- One FLEET host account (existing dummy works — `acme-fleet@test.com` or similar).
+- A fresh customer email you can use for full signup-to-verified flow.
+- A couple of test images / PDFs under 5 MB each (any JPG / PNG / WebP / PDF).
+
+### T19-A — Host (INDIVIDUAL) self-service upload + admin queue filter
+
+**Host side**
+1. Log in as an INDIVIDUAL host (e.g. `host-2@email.com`). Land on `/host/dashboard`.
+2. Click **Profile** in the host nav → `/host/profile`.
+3. New **Verification Documents** card renders above the bio form with two upload panels: **Valid Government ID** and **Driver's License**. Banner at top reads "Upload all documents to start verification."
+4. Upload a test image / PDF (< 5 MB) under the ID panel. The "Not uploaded" pill flips to a green "Uploaded" pill; the banner stays amber ("Upload all documents...").
+5. Upload another under the License panel. Banner flips to **"Documents submitted — awaiting review."**
+6. Click **View current document** under each panel — opens the signed URL in a new tab (1-hour expiry). PDF should preview; images should display.
+
+**Admin side — queue filter**
+7. Log out, log in as `admin@carbnb.com`. Land on `/dashboard`.
+8. The **Pending Approvals** tile counts only PENDING owners with all required docs uploaded. Verify this number matches the count of hosts that have completed step 5 (you may have to clear any other PENDING-but-no-docs hosts to confirm).
+9. **Verification Queue** card on `/dashboard` lists up to 3 of these hosts as clickable cards.
+10. Go to `/owners`. **X pending review** stat at top and the **Verification Queue** sidebar both reflect the same filter — hosts mid-upload don't appear.
+11. Click into the host you uploaded as → `/owners/[id]` → Documents tab → both **Government ID** and **Driver's License** cards show as Uploaded with view links. The signed URLs work.
+
+**File constraint sanity**
+12. Back on `/host/profile`, try uploading a 6+ MB file or a `.txt` file. Inline error: "File is too large (5 MB max)." or "Only JPG, PNG, WebP, or PDF are allowed." No row update happens.
+
+### T19-B — Host (FLEET) self-service upload (ID + Business Registration)
+
+**Setup**
+1. Log in as a FLEET host (e.g. `acme-fleet@test.com`). Go to `/host/profile`.
+
+**Upload flow — Fleet variant**
+2. The **Verification Documents** card now shows **Government ID** + **Business Registration** panels (NOT Driver's License). Copy adapts to fleet wording ("Upload a government ID for the contact person and your business registration certificate (DTI / SEC)...").
+3. Upload an image / PDF for ID. Then upload one for Business Registration. Status banner flips to "Documents submitted — awaiting review."
+4. The Driver's License panel is not rendered for this host — confirms the per-kind matrix from cross-cutting decision #7 (fleets skip license).
+
+**Admin side**
+5. Log in as admin → `/owners/[id]` for the FLEET host → Documents tab.
+6. Card swap: **Government ID** + **Business Registration** cards (no Driver's License). Both with view links.
+7. Go to `/owners/[id]/edit`. The admin upload form has the same ID + Business Registration panels (no license). Admin can replace either doc from here.
+
+**Per-kind validation (server-side)**
+8. From the browser dev console while logged in as the FLEET host, fire a form-POST to `uploadHostDocumentAction` with `docKind=license`. Inline error: "Driver's license is not required for fleet operators." (Or: trust the UI test in step 4 — there's no path to send a license upload from the Fleet UI.)
+
+### T19-C — Customer signup → PENDING + verification banner
+
+**Fresh signup**
+1. Sign up a new customer via `/signup` → Customer card → email/password OR Google.
+2. After signup land on `/account`.
+3. Top of page: an amber **"Identity verification required to book"** banner with a **Verify your identity →** button. Banner is rendered BEFORE the "My Bookings" headline.
+4. Header user menu now includes a **Verification** link to `/account/verification`.
+
+**Listing detail — Reserve gate**
+5. Open `/listings/[any active listing]` in a new tab while logged in as that customer.
+6. The fixed bottom CTA reads **"Verify your identity to book"** (link, not button) instead of "Reserve Now". Click it → routes to `/account/verification`.
+7. The Reserve dialog never opens for unverified customers.
+
+**Server gate (defense in depth)**
+8. Via dev tools, fire a manual POST to `createBookingAction` with valid listing + date params while customer status is PENDING. Action returns error: "You must verify your identity before booking. Please upload your ID and driver's license at /account/verification."
+
+**Customers backfilled as VERIFIED (sanity)**
+9. Log in as an existing seeded customer (e.g. `customer-1@email.com`). `/account` shows no banner. They keep the same Reserve UX as before — the Tier 19 migration grandfathered them.
+
+### T19-D — Verification upload + admin verify + booking unlock
+
+**Customer uploads**
+1. Continuing as the new PENDING customer from T19-C, go to `/account/verification`.
+2. Status banner reads "Upload both documents to start verification." Two empty upload panels.
+3. Upload one doc. Banner unchanged. Upload the second. Banner flips to "Documents submitted — awaiting review."
+4. Header user menu still works; navigation back to `/account` shows the SAME amber banner (the banner copy doesn't change between "no docs" and "docs uploaded, awaiting review" — both are PENDING status).
+
+**Admin reviews + verifies**
+5. Switch to admin. Go to `/customers`. New **Pending verification** summary tile shows count = customers with PENDING status who have both docs uploaded.
+6. Click the **Pending** filter chip → directory filters to PENDING customers only. The new customer appears with status badge "Pending Verification".
+7. Click into the customer → `/customers/[id]`. Top of page: status badge + four action buttons (**Verify**, **Reject**, **Suspend**, no **Re-verify** yet — it only shows when status = VERIFIED).
+8. Below the header is the new **Identity Verification** card with both documents shown. Click each — signed URLs open the uploaded files.
+9. Click **Verify**. Status badge flips to "Verified". Re-verify button now appears in place of Reject. Verify button is hidden.
+10. Activity log entry recorded: "Admin admin@carbnb.com verified customer ..."
+
+**Customer can now book**
+11. Switch back to the customer. Refresh `/account`. **Banner is gone.**
+12. Open a listing → fixed bottom CTA is now **Reserve Now**. Click → date dialog opens → pick dates → submit. Booking created successfully.
+13. The booking lands at `/account/bookings/[id]` with status **Pending** (host-approval flow) OR **Confirmed** if `autoApproveVerifiedCustomers` is enabled (see T19-F).
+
+### T19-E — Reject / Suspend / Flag-for-reverification transitions
+
+**Reject + re-upload**
+1. Admin → `/customers/[id]` for a PENDING customer with docs uploaded → click **Reject**. Status flips to "Rejected".
+2. Customer side: `/account` shows a red "Verification rejected" banner with a **Re-upload documents** button.
+3. Click the button → `/account/verification` shows a red rejection banner above the upload panels. Re-upload one doc.
+4. Admin refreshes `/customers/[id]` — the **Re-verify** button is NOT available for REJECTED (only for VERIFIED), but the **Verify** button is. Click Verify. Customer now Verified.
+
+**Suspend + reinstate**
+5. Admin → for a VERIFIED customer → click **Suspend**. Status flips to "Suspended". Verify and Re-verify buttons disappear; Verify button reappears with label **Reinstate**.
+6. Customer side: `/account` shows a red "Account suspended" banner. `/account/verification` shows a red suspended notice and HIDES the upload panels (can't upload while suspended).
+7. Reserve button on listings is gone — replaced with the verify CTA.
+8. Admin clicks **Reinstate** → customer flips to Verified. Customer side restores.
+
+**Flag for re-verification (VERIFIED → PENDING)**
+9. Admin → VERIFIED customer → click **Re-verify**. Status flips back to "Pending Verification".
+10. Existing docs stay attached (DB columns not cleared). Customer can re-upload to replace from `/account/verification`.
+11. Activity log records "Admin admin@carbnb.com flagged for re-verification customer ..."
+
+**Reject button only on PENDING**
+12. Confirm: the Reject button is hidden when status is anything other than PENDING. The transition matrix is enforced in `CustomerStatusActions`.
+
+### T19-F — autoApproveVerifiedCustomers wiring + email/password regression
+
+**autoApproveVerifiedCustomers OFF (default)**
+1. Admin → `/settings`. Locate the **Auto-approve verified customers** toggle. Confirm it's OFF.
+2. Log in as a VERIFIED customer. Create a booking. After redirect, the booking detail shows status **Pending** (host has to confirm). Matches behavior before Tier 19.
+
+**autoApproveVerifiedCustomers ON**
+3. Admin → `/settings` → toggle the setting ON → save. Setting persists across page refreshes.
+4. Customer creates another booking on a different listing. After redirect, the booking detail shows status **Confirmed** — skipped the host approval step entirely.
+5. Host side: the booking appears on the host dashboard but doesn't require their approval — it's already Confirmed.
+6. Toggle the setting back OFF for the next test if desired.
+
+**Email/password regression**
+7. Log in as `admin@carbnb.com` via either tab with the existing password. Lands on `/dashboard`. No change.
+8. Log in as an existing dummy host (e.g. `host-2@email.com`) via the Host tab. Lands on `/host/dashboard`. The new Verification Documents card is visible on /host/profile (may already have ID/license from T19-A).
+9. Log in as `customer-1@email.com` via the Customer tab. Lands on `/account`. NO verification banner (grandfathered as VERIFIED in the migration). Can book a listing.
+10. Sign up `customer-99@email.com` via email/password → Customer card. Lands on `/login?signedUp=customer`. Log in → `/account` shows the verification banner (new customer = PENDING).
+
+**Grandfathered sanity**
+11. Open Prisma Studio → Customer table. All existing seeded customers (`customer-1@email.com`, etc.) have `status = "Verified"`. New customers created via signup show `status = "Pending Verification"`.
+
+If all 6 sections pass, Tier 19 ships cleanly. Booking creation on the marketplace is gated on identity verification end-to-end (UI + server action); both host and customer roles can self-serve their documents; admin has approve / reject / suspend / re-verify levers; existing data didn't break.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

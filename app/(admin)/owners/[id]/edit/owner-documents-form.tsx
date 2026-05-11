@@ -11,7 +11,7 @@ import {
   type OwnerActionState,
 } from "@/app/actions/owners";
 
-type DocKind = "id" | "license";
+type DocKind = "id" | "license" | "business_registration";
 
 function DocUploadPanel({
   ownerId,
@@ -97,20 +97,26 @@ function DocUploadPanel({
 
 export function OwnerDocumentsForm({
   ownerId,
+  ownerKind,
   idSignedUrl,
   licenseSignedUrl,
+  businessRegSignedUrl,
 }: {
   ownerId: string;
+  ownerKind: "INDIVIDUAL" | "FLEET";
   idSignedUrl: string | null;
   licenseSignedUrl: string | null;
+  businessRegSignedUrl: string | null;
 }) {
+  const isFleet = ownerKind === "FLEET";
   return (
     <Card>
       <CardHeader>
         <CardTitle>Verification Documents</CardTitle>
         <CardDescription>
-          Upload government ID and driver&apos;s license for this owner. Files are
-          stored privately — signed links expire every hour.
+          {isFleet
+            ? "Upload government ID for the contact person and the fleet's business registration document. Files are stored privately — signed links expire every hour."
+            : "Upload government ID and driver's license for this owner. Files are stored privately — signed links expire every hour."}
         </CardDescription>
       </CardHeader>
       <CardContent className="grid gap-6 md:grid-cols-2">
@@ -121,13 +127,23 @@ export function OwnerDocumentsForm({
           label="Valid Government ID"
           ownerId={ownerId}
         />
-        <DocUploadPanel
-          currentSignedUrl={licenseSignedUrl}
-          docKind="license"
-          helper="Driver's license. JPG, PNG, WebP, or PDF, up to 5 MB."
-          label="Driver's License"
-          ownerId={ownerId}
-        />
+        {isFleet ? (
+          <DocUploadPanel
+            currentSignedUrl={businessRegSignedUrl}
+            docKind="business_registration"
+            helper="DTI / SEC business registration certificate. JPG, PNG, WebP, or PDF, up to 5 MB."
+            label="Business Registration"
+            ownerId={ownerId}
+          />
+        ) : (
+          <DocUploadPanel
+            currentSignedUrl={licenseSignedUrl}
+            docKind="license"
+            helper="Driver's license. JPG, PNG, WebP, or PDF, up to 5 MB."
+            label="Driver's License"
+            ownerId={ownerId}
+          />
+        )}
       </CardContent>
     </Card>
   );

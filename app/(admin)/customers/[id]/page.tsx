@@ -6,17 +6,22 @@ import {
   CalendarDays,
   ClipboardList,
   Eye,
+  FileText,
   Mail,
   Phone,
+  ShieldCheck,
   User,
   Wallet,
 } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { db } from "@/lib/db";
-import { BookingStatus, PaymentStatus } from "@/types";
+import { getCustomerDocumentSignedUrl } from "@/lib/customer-documents";
+import { BookingStatus, CustomerStatus, PaymentStatus } from "@/types";
+import { CustomerStatusActions } from "./status-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +74,16 @@ export default async function CustomerDetailPage({
   );
   const lifetimeSpend = completedBookings.reduce((sum, b) => sum + b.totalAmount, 0);
 
+  // Tier 19 — signed URLs for verification docs. Both nullable; the
+  // Verification card renders empty states when either is missing.
+  const [idSignedUrl, licenseSignedUrl] = await Promise.all([
+    getCustomerDocumentSignedUrl(customer.idDocumentUrl),
+    getCustomerDocumentSignedUrl(customer.licenseDocumentUrl),
+  ]);
+  const allDocsPresent = Boolean(
+    customer.idDocumentUrl && customer.licenseDocumentUrl,
+  );
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-10">
       <div className="flex items-center gap-2">
@@ -86,14 +101,68 @@ export default async function CustomerDetailPage({
 
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <div>
-          <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl">
-            {customer.fullName}
-          </h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="font-headline text-3xl font-extrabold tracking-tight text-on-surface sm:text-4xl">
+              {customer.fullName}
+            </h1>
+            <CustomerStatusBadge status={customer.status} />
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Customer since {format(customer.createdAt, "MMMM d, yyyy")}
           </p>
         </div>
+        <CustomerStatusActions customerId={customer.id} status={customer.status} />
       </div>
+
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="border-b border-border pb-3">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+            <ShieldCheck className="w-4 h-4" />
+            Identity Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          {customer.status === CustomerStatus.VERIFIED ? (
+            <p className="rounded-md bg-emerald-50 p-3 text-xs text-emerald-800">
+              This customer&apos;s identity is verified. They can book any
+              active listing. Use the Re-verify button above to flag them
+              for re-submission if documents need updating.
+            </p>
+          ) : customer.status === CustomerStatus.REJECTED ? (
+            <p className="rounded-md bg-red-50 p-3 text-xs text-red-800">
+              Customer&apos;s verification was rejected. They can re-upload
+              documents from their account page.
+            </p>
+          ) : customer.status === CustomerStatus.SUSPENDED ? (
+            <p className="rounded-md bg-red-50 p-3 text-xs text-red-800">
+              Customer is suspended. They cannot book until reinstated.
+            </p>
+          ) : allDocsPresent ? (
+            <p className="rounded-md bg-amber-50 p-3 text-xs text-amber-900">
+              All documents uploaded. Review below and approve or reject.
+            </p>
+          ) : (
+            <p className="rounded-md bg-amber-50 p-3 text-xs text-amber-900">
+              Customer has not yet uploaded all required documents. They
+              cannot be verified until they upload both ID and driver&apos;s
+              license.
+            </p>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <DocumentCard
+              signedUrl={idSignedUrl}
+              storedPath={customer.idDocumentUrl}
+              title="Government ID"
+            />
+            <DocumentCard
+              signedUrl={licenseSignedUrl}
+              storedPath={customer.licenseDocumentUrl}
+              title="Driver's License"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="border-border/50 shadow-sm">
@@ -234,6 +303,82 @@ export default async function CustomerDetailPage({
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function CustomerStatusBadge({ status }: { status: string }) {
+  switch (status) {
+    case CustomerStatus.VERIFIED:
+      return (
+        <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/25 border-emerald-500/20">
+          {status}
+        </Badge>
+      );
+    case CustomerStatus.SUSPENDED:
+    case CustomerStatus.REJECTED:
+      return (
+        <Badge
+          className="bg-red-500/15 text-red-700 hover:bg-red-500/25 border-red-500/20"
+          variant="destructive"
+        >
+          {status}
+        </Badge>
+      );
+    default:
+      return (
+        <Badge className="bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 border-amber-500/20">
+          {status}
+        </Badge>
+      );
+  }
+}
+
+function DocumentCard({
+  title,
+  storedPath,
+  signedUrl,
+}: {
+  title: string;
+  storedPath: string | null;
+  signedUrl: string | null;
+}) {
+  const hasDoc = Boolean(storedPath);
+  return (
+    <div className="rounded-lg border border-border/50 p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h4 className="text-sm font-semibold">{title}</h4>
+        {hasDoc ? (
+          <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+            Uploaded
+          </span>
+        ) : (
+          <span className="rounded-full bg-muted px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Not uploaded
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-3 rounded-md bg-muted/30 p-3">
+        <div className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary">
+          <FileText className="size-5" />
+        </div>
+        <div className="min-w-0 flex-1 text-xs">
+          {signedUrl ? (
+            <a
+              className="font-medium text-primary underline"
+              href={signedUrl}
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              View document
+            </a>
+          ) : (
+            <p className="text-muted-foreground">
+              Customer has not uploaded this yet.
+            </p>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

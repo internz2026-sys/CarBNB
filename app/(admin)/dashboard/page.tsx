@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { BookingStatus, ListingStatus, OwnerStatus } from "@/types";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
+import { PENDING_OWNER_WITH_DOCS_WHERE } from "@/lib/host-verification";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -48,7 +49,9 @@ export default async function DashboardPage() {
     db.owner.count(),
     db.owner.count({ where: { status: OwnerStatus.VERIFIED } }),
     db.carListing.count({ where: { status: ListingStatus.ACTIVE } }),
-    db.owner.count({ where: { status: OwnerStatus.PENDING } }),
+    // Tier 19 — count only PENDING owners who've uploaded all required docs
+    // (= ready for admin review). Hosts mid-upload don't inflate this tile.
+    db.owner.count({ where: PENDING_OWNER_WITH_DOCS_WHERE }),
     db.carListing.count({ where: { status: ListingStatus.PENDING_APPROVAL } }),
     db.booking.aggregate({
       where: { status: BookingStatus.COMPLETED },
@@ -75,7 +78,7 @@ export default async function DashboardPage() {
       },
     }),
     db.owner.findMany({
-      where: { status: OwnerStatus.PENDING },
+      where: PENDING_OWNER_WITH_DOCS_WHERE,
       orderBy: { createdAt: "desc" },
       take: 3,
       select: { id: true, fullName: true, email: true, createdAt: true },
