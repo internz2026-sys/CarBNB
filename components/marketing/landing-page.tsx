@@ -877,6 +877,12 @@ export default async function LandingPage() {
                 <Link className="block text-on-surface-variant transition hover:text-primary" href="/fleets">
                   Fleet Directory
                 </Link>
+                <Link className="block text-on-surface-variant transition hover:text-primary" href="/privacy">
+                  Privacy Policy
+                </Link>
+                <Link className="block text-on-surface-variant transition hover:text-primary" href="/terms">
+                  Terms of Service
+                </Link>
               </div>
             </div>
           </ScrollReveal>
