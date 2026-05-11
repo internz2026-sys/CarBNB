@@ -7,6 +7,8 @@ import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { OwnerStatus } from "@/types";
+import { notify } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
 
 const OWNER_DOCUMENTS_BUCKET = "owner-documents";
 const MAX_DOC_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -193,6 +195,32 @@ async function updateOwnerStatus(
       type: "owner",
     },
   });
+
+  // Tier 20 — notify the host on status transitions they need to know
+  // about. VERIFIED unlocks their dashboard; SUSPENDED blocks them.
+  if (targetStatus === OwnerStatus.VERIFIED) {
+    await notify({
+      recipientEmail: owner.email,
+      recipientRole: "host",
+      recipientName: owner.fullName,
+      type: NotificationType.OWNER_VERIFIED,
+      title: "Your host account is verified",
+      body: `Welcome to DriveXP, ${owner.fullName.split(" ")[0]}! Your account is verified and you can now list cars and accept bookings.`,
+      linkUrl: "/host/dashboard",
+      linkLabel: "Open host dashboard",
+    });
+  } else if (targetStatus === OwnerStatus.SUSPENDED) {
+    await notify({
+      recipientEmail: owner.email,
+      recipientRole: "host",
+      recipientName: owner.fullName,
+      type: NotificationType.OWNER_SUSPENDED,
+      title: "Your host account has been suspended",
+      body: "An admin has suspended your host account. Existing bookings continue but new bookings cannot be confirmed. Contact support if you have questions.",
+      linkUrl: "/host/dashboard",
+      linkLabel: "View dashboard",
+    });
+  }
 
   revalidatePath("/owners");
   revalidatePath(`/owners/${id}`);

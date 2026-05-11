@@ -6,6 +6,9 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, CustomerStatus, ListingStatus, PaymentStatus } from "@/types";
+import { notify, notifyMany } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
+import { format } from "date-fns";
 import { checkAvailability } from "@/lib/availability";
 import { calculateBookingAmount } from "@/lib/platform-settings";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
@@ -164,6 +167,51 @@ export async function createBookingAction(
     },
   });
 
+  // Tier 20 — fan-out notifications to the host + all admins. Host copy
+  // adapts to the booking's initial status (Tier 19 decision #5 — verified
+  // customers' bookings auto-confirm when the platform setting is on).
+  const carLabel = `${listing.brand} ${listing.model}`;
+  const dateRange = `${format(pickup, "MMM d")} → ${format(returnDate, "MMM d, yyyy")}`;
+  const [hostOwner, admins] = await Promise.all([
+    db.owner.findUnique({
+      where: { id: listing.owner.id },
+      select: { email: true, fullName: true },
+    }),
+    db.user.findMany({
+      where: { role: "ADMIN" },
+      select: { email: true, name: true },
+    }),
+  ]);
+  const recipients: Parameters<typeof notifyMany>[0] = [];
+  if (hostOwner) {
+    recipients.push({
+      recipientEmail: hostOwner.email,
+      recipientRole: "host",
+      recipientName: hostOwner.fullName,
+      type: NotificationType.BOOKING_CREATED,
+      title: `New booking on ${carLabel}`,
+      body:
+        initialStatus === BookingStatus.CONFIRMED
+          ? `${customer.fullName} booked your ${carLabel} for ${dateRange}. This booking is confirmed and on your schedule.`
+          : `${customer.fullName} booked your ${carLabel} for ${dateRange}. Open the booking to confirm or reject.`,
+      linkUrl: `/host/bookings/${booking.id}`,
+      linkLabel: "View booking",
+    });
+  }
+  for (const adminUser of admins) {
+    recipients.push({
+      recipientEmail: adminUser.email,
+      recipientRole: "admin",
+      recipientName: adminUser.name ?? undefined,
+      type: NotificationType.BOOKING_CREATED,
+      title: `New booking · ${carLabel}`,
+      body: `${customer.fullName} booked ${carLabel} (${listing.plateNumber}) from ${hostOwner?.fullName ?? "host"} for ${dateRange}. Ref ${referenceNumber}.`,
+      linkUrl: `/bookings/${booking.id}`,
+      linkLabel: "Open booking",
+    });
+  }
+  await notifyMany(recipients);
+
   revalidatePath("/account");
   revalidatePath(`/listings/${listing.id}`);
   revalidatePath("/bookings");
@@ -212,6 +260,24 @@ export async function cancelBookingAction(
       type: "booking",
     },
   });
+
+  // Tier 20 — notify the host that the customer cancelled.
+  const cancelledHost = await db.owner.findUnique({
+    where: { id: booking.ownerId },
+    select: { email: true, fullName: true },
+  });
+  if (cancelledHost) {
+    await notify({
+      recipientEmail: cancelledHost.email,
+      recipientRole: "host",
+      recipientName: cancelledHost.fullName,
+      type: NotificationType.BOOKING_CANCELLED,
+      title: `Booking cancelled · ${booking.carName}`,
+      body: `${customer.fullName} cancelled their booking on the ${booking.carName} for ${format(booking.pickupDate, "MMM d")} → ${format(booking.returnDate, "MMM d, yyyy")}.`,
+      linkUrl: `/host/bookings/${bookingId}`,
+      linkLabel: "View booking",
+    });
+  }
 
   revalidatePath("/account");
   revalidatePath(`/account/bookings/${bookingId}`);

@@ -2309,6 +2309,110 @@ If all 6 sections pass, Tier 19 ships cleanly. Booking creation on the marketpla
 
 ---
 
+## Tier 20 — Notifications (email + in-app bell)
+
+Adds a bell icon in the TopNav for admin / host / customer (each scoped to that user's recipientEmail). Bell shows unread count badge, opens a dropdown with the 5 most recent notifications, and links to `/notifications` (full archive). Every state-changing server action that affects a user (booking created/confirmed/rejected/cancelled, owner verified/suspended, listing approved/rejected, customer verified/rejected, review posted) also fires an outbound email via Resend.
+
+### Prerequisites
+
+- **Resend account + API key.** Sign up at resend.com, create an API key, drop it in `.env.local` as `RESEND_API_KEY=re_...`. Without the key, in-app notifications still work; emails are skipped with a clear log line.
+- Existing accounts ready: admin (`admin@carbnb.com`), verified host, verified customer.
+- An active listing belonging to the verified host (sign in as host → /host/cars and confirm at least one ACTIVE listing).
+- A real email inbox you can read for at least the **customer** and **host** accounts you'll test with (so you can verify emails arrive). The dev sandbox From address (`onboarding@resend.dev`) ships to any Gmail.
+
+### T20-A — Booking created → host + admin notifications
+
+**Trigger**
+1. Sign in as a VERIFIED customer. Open a listing → Reserve → pick dates → Confirm Reservation.
+2. Booking is created (lands at `/account/bookings/[id]` with status Pending or Confirmed depending on `autoApproveVerifiedCustomers`).
+
+**Host side**
+3. In another browser / incognito, sign in as the listing's host. TopNav bell now shows a red badge with "1".
+4. Click the bell → dropdown shows "New booking on [car name]" with the customer's name + dates.
+5. Click the notification → bell closes, you navigate to `/host/bookings/[id]`, the dropdown notification is now marked read on next bell open.
+6. Open the host's email inbox. There's a DriveXP email titled "New booking on [car name]" with the same content and a CTA button linking to `/host/bookings/[id]`.
+
+**Admin side**
+7. Switch to admin (`admin@carbnb.com`). Bell shows a "1" badge.
+8. Open the bell → "New booking · [car name]" with reference number.
+9. Click → navigates to `/bookings/[id]`. Admin email inbox also has the same email.
+
+**Verify in DB**
+10. Prisma Studio → Notification table → at least 2 rows for this booking: one with `recipientRole = "host"` and one with `recipientRole = "admin"`. Both `isRead` flips to `true` after step 5/9.
+
+### T20-B — Host confirm / reject → customer notification
+
+**Confirm**
+1. While logged in as the host, open the pending booking from T20-A → click **Confirm**.
+2. Switch to the customer's browser → `/account` → bell badge shows "1" (or N + 1 if there's more).
+3. Bell dropdown shows "Booking confirmed · [car name]". Customer email inbox has the same.
+
+**Reject**
+4. Repeat the booking flow as the customer with a fresh listing.
+5. Host opens the new pending booking → clicks **Reject** → picks a reason → submits.
+6. Customer bell shows "Booking declined · [car name]". Email arrives with a "Browse other cars" CTA.
+
+### T20-C — Customer verification → customer notification
+
+1. Sign up a fresh customer (status = PENDING).
+2. Upload both ID + license at `/account/verification`. Switch to admin.
+3. Admin → `/customers/[id]` for that customer → click **Verify**.
+4. Customer's bell badge increments. Bell shows "Your identity has been verified" with a "Browse cars" CTA.
+5. Email arrives with the same content.
+6. Repeat with a fresh customer and click **Reject** instead → customer bell shows "Verification needs re-submission" with re-upload CTA.
+
+### T20-D — Host + listing approvals → host notifications
+
+**Owner verification**
+1. Sign up a fresh host (status = PENDING). Upload required docs.
+2. Switch to admin → /owners/[id] → click **Approve Owner**.
+3. Host's bell shows "Your host account is verified". Email arrives.
+
+**Listing approval**
+4. Sign in as the now-verified host → /host/cars → create a new listing → submit for approval.
+5. Switch to admin → /car-listings/[id] → click **Approve**.
+6. Host's bell shows "Your [car] is approved". Email arrives.
+
+**Listing suspension**
+7. Admin → click **Suspend** on an ACTIVE listing.
+8. Host's bell shows "Your [car] listing was suspended". Email arrives.
+
+### T20-E — Bell UI + /notifications archive page
+
+**Dropdown behavior**
+1. Sign in to any account with at least 5 notifications. Bell dropdown shows exactly 5 most recent.
+2. Unread notifications have a primary-color dot indicator + bold title; read ones are flat-styled.
+3. Click "Mark all read" in the dropdown header → badge drops to 0, all 5 indicators clear.
+4. Click any individual notification → marks just that one as read + navigates.
+
+**Archive page**
+5. Bottom of dropdown → click **View all notifications** → `/notifications`.
+6. Page shows all notifications (up to 100 most recent), header reads "X unread · Y total".
+7. Each entry shows title, body, time-ago, and (for unread) a primary highlight + "Mark as read" button + an "Open →" link to the entity.
+8. Click a row's "Open →" link → navigates to the linked entity.
+9. "Mark all as read" header button works the same as the dropdown's.
+
+**Empty state**
+10. Sign in as a brand-new account with no notifications → bell badge hidden. Open the dropdown → "You're all caught up." Open /notifications → empty-state card with a "No notifications yet" message.
+
+### T20-F — Email delivery (Resend sandbox)
+
+**Smoke test the email pipeline**
+1. With `RESEND_API_KEY` set, trigger any notification (easiest: have admin verify a pending customer).
+2. Check the inbox of the recipient Gmail — email should arrive within seconds.
+3. From address shows as `DriveXP <onboarding@resend.dev>`.
+4. Open Resend dashboard → Emails tab → the just-sent email appears with status "delivered".
+
+**Missing-key fallback**
+5. Temporarily remove `RESEND_API_KEY` from `.env.local`. Restart `npm run dev`.
+6. Trigger a notification. In-app bell still shows it (DB row was still created).
+7. Email is skipped. ActivityLogEntry has a row with description ending in `Email: skipped (RESEND_API_KEY not configured)`.
+8. Restore the key for further tests.
+
+If all 6 sections pass, Tier 20 ships. Every meaningful state change on the platform now produces both an in-app bell notification and an email; recipients route correctly per role; the bell dropdown + archive page handle read/unread states; and the email pipeline degrades gracefully when the key is missing.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

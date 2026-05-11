@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { CustomerStatus } from "@/types";
+import { notify } from "@/lib/notify";
+import { NotificationType } from "@/lib/notification-types";
 
 export type CustomerActionState =
   | {
@@ -73,6 +75,33 @@ async function transitionCustomerStatus({
       type: "customer",
     },
   });
+
+  // Tier 20 — notify the customer on status transitions they need to know
+  // about. We skip notifications for the "flag for re-verification" PENDING
+  // case since that's covered by the dashboard banner + verification page.
+  if (newStatus === CustomerStatus.VERIFIED) {
+    await notify({
+      recipientEmail: customer.email,
+      recipientRole: "customer",
+      recipientName: customer.fullName,
+      type: NotificationType.CUSTOMER_VERIFIED,
+      title: "Your identity has been verified",
+      body: `Welcome to DriveXP, ${customer.fullName.split(" ")[0]}! Your identity is verified and you can now book any active listing.`,
+      linkUrl: "/listings",
+      linkLabel: "Browse cars",
+    });
+  } else if (newStatus === CustomerStatus.REJECTED) {
+    await notify({
+      recipientEmail: customer.email,
+      recipientRole: "customer",
+      recipientName: customer.fullName,
+      type: NotificationType.CUSTOMER_REJECTED,
+      title: "Verification needs re-submission",
+      body: "Your verification documents were rejected. Please upload clear copies of your government ID and driver's license to re-submit for review.",
+      linkUrl: "/account/verification",
+      linkLabel: "Re-upload documents",
+    });
+  }
 
   revalidatePath("/customers");
   revalidatePath(`/customers/${customerId}`);

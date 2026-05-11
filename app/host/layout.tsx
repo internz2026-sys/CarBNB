@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { UserMenu } from "@/components/layout/user-menu";
+import { NotificationBellServer } from "@/components/layout/notification-bell-server";
 import { getCurrentHost } from "@/lib/current-host";
 import { HostNav } from "./host-nav";
 
@@ -32,16 +33,20 @@ export default async function HostLayout({
             />
           </Link>
           <HostNav verified={session.kind === "verified"} />
-          <UserMenu
-            fullName={session.owner.fullName}
-            links={[
-              { label: "Dashboard", href: "/host/dashboard" },
-              { label: "My cars", href: "/host/cars" },
-              { label: "My bookings", href: "/host/bookings" },
-              { label: "Profile", href: "/host/profile" },
-            ]}
-            roleLabel="Host"
-          />
+          <div className="flex items-center gap-3">
+            <NotificationBellServer />
+            <UserMenu
+              fullName={session.owner.fullName}
+              links={[
+                { label: "Dashboard", href: "/host/dashboard" },
+                { label: "My cars", href: "/host/cars" },
+                { label: "My bookings", href: "/host/bookings" },
+                { label: "Notifications", href: "/notifications" },
+                { label: "Profile", href: "/host/profile" },
+              ]}
+              roleLabel="Host"
+            />
+          </div>
         </div>
       </header>
 

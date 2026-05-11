@@ -368,3 +368,24 @@ model PlatformSettings {
   updatedAt                    DateTime @updatedAt
   updatedBy                    String?  // admin email who last saved
 }
+
+// Tier 20 — notifications. Drives the in-app bell + /notifications archive
+// page. Always created alongside an outbound email by lib/notify.ts; the
+// in-app and email surfaces share the same trigger points and payload.
+// Indexed on (recipientEmail, isRead, createdAt) for the bell-icon query
+// which fetches unread count + 5 most recent per logged-in user.
+model Notification {
+  id              String    @id @default(cuid())
+  recipientEmail  String                                          // who this is for; matched against Supabase auth.users.email
+  recipientRole   String                                          // "admin" | "host" | "customer" — drives which archive page / bell renders
+  type            String                                          // BOOKING_CREATED, CUSTOMER_VERIFIED, etc. — see notification-types in lib/notify.ts
+  title           String                                          // short headline shown in the bell dropdown
+  body            String                                          // 1-2 sentence preview, also used as email subject body
+  linkUrl         String?                                         // optional — click navigates here (e.g. /host/bookings/[id])
+  isRead          Boolean   @default(false)
+  readAt          DateTime?                                       // set when the user clicks the notification (or "Mark all as read")
+  createdAt       DateTime  @default(now())
+
+  @@index([recipientEmail, isRead, createdAt])
+  @@index([recipientEmail, createdAt])
+}
