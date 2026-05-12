@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { Building2, Car, CalendarClock, Wallet, ShieldAlert, ShieldCheck } from "lucide-react";
+import { Building2, Car, CalendarClock, ExternalLink, Wallet, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { BookingStatus, ListingStatus } from "@/types";
 import { getCurrentHost } from "@/lib/current-host";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { FleetRequestActions } from "./fleet-request-actions";
 
 export const dynamic = "force-dynamic";
@@ -202,7 +204,20 @@ export default async function HostDashboardPage() {
                         : ""}
                     </p>
                   </div>
-                  <FleetRequestActions linkId={req.id} />
+                  <div className="flex flex-col gap-2 sm:items-end">
+                    <Link
+                      className={cn(
+                        buttonVariants({ variant: "outline", size: "sm" }),
+                        "w-full sm:w-auto",
+                      )}
+                      href={`/listings/${req.listing.id}`}
+                      target="_blank"
+                    >
+                      <ExternalLink className="mr-1.5 size-3.5" />
+                      View car details
+                    </Link>
+                    <FleetRequestActions linkId={req.id} />
+                  </div>
                 </li>
               ))}
             </ul>

@@ -51,6 +51,15 @@ model Owner {
   // Null for INDIVIDUAL kind. Stored in private `owner-documents` bucket.
   businessRegistrationDocumentUrl String?
 
+  // Tier 21 — fleet primary location (manually pinned on a Leaflet map at
+  // signup or via /host/profile). Null until the fleet sets it. Used by:
+  //   - /fleets directory: render pins on the public map
+  //   - /host/cars/[id]/edit fleet picker: render pins for selection
+  // INDIVIDUAL kind ignores these fields. No geocoding service involved —
+  // the fleet drops a pin manually, we store lat/lng as-is.
+  latitude    Float?
+  longitude   Float?
+
   cars            CarListing[]
   bookings        Booking[]
   ownerPayouts    OwnerPayout[]

@@ -8,6 +8,7 @@ import { getOwnerDocumentSignedUrl } from "@/lib/owner-documents";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BioForm } from "./bio-form";
 import { HostDocumentsSection } from "./host-documents-section";
+import { FleetLocationSection } from "./fleet-location-section";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export default async function HostProfilePage() {
       idDocumentUrl: true,
       licenseDocumentUrl: true,
       businessRegistrationDocumentUrl: true,
+      latitude: true,
+      longitude: true,
     },
   });
   if (!owner) redirect("/");
@@ -110,6 +113,13 @@ export default async function HostProfilePage() {
         ownerKind={ownerKind}
         ownerStatus={owner.status}
       />
+
+      {ownerKind === "FLEET" ? (
+        <FleetLocationSection
+          initialLatitude={owner.latitude}
+          initialLongitude={owner.longitude}
+        />
+      ) : null}
 
       <BioForm initialBio={owner.bio ?? ""} />
     </div>

@@ -2413,6 +2413,147 @@ If all 6 sections pass, Tier 20 ships. Every meaningful state change on the plat
 
 ---
 
+## Tier 21 — Proximity-aware fleet picker (interactive map)
+
+Replaces the fleet-picker dropdown on `/host/cars/[id]/edit` with an interactive **Leaflet + OpenStreetMap** showing verified fleet operators as pins. Fleets manually pin their primary location at signup or from `/host/profile`. The same map appears on the public `/fleets` directory above the existing card grid. No third-party geocoding service, no API keys, no monthly cost.
+
+### Prerequisites
+
+- One VERIFIED FLEET host already in your DB (e.g. `acme-fleet@test.com`)
+- One VERIFIED INDIVIDUAL host with at least one ACTIVE listing (so there's a car to link)
+- Browser able to load Leaflet (any modern browser)
+- Initial fleets will have `latitude` + `longitude` = NULL after the migration — they appear in the "Other fleets (location not set)" fallback list until they pin a location
+
+### T21-A — FLEET host sets their location on `/host/profile`
+
+**Setup**
+1. Log in as a VERIFIED FLEET host.
+2. Go to `/host/profile`. Below the Verification Documents card, a new **Map Location** card appears.
+
+**Initial state**
+3. The status banner reads "Your fleet doesn't have a map location yet."
+4. The map renders centered on Metro Manila (14.5995, 120.9842) at zoom 11, showing OSM tiles.
+5. A floating instruction at the top of the map reads "Click anywhere on the map to set your location."
+
+**Drop a pin**
+6. Click anywhere on the map → a blue/white teardrop pin appears at the click point.
+7. The instruction overlay flips to show the lat/lng coordinates ("14.55478, 121.02430 · drag the pin to adjust").
+8. Drag the pin → coordinates update in the overlay.
+9. The Save button becomes enabled.
+
+**Save**
+10. Click **Save location** → button label flips to "Saving…" then green "Saved." confirmation appears below.
+11. Refresh the page. The map should re-center on the saved pin. Banner now reads "Your location is set."
+12. Click somewhere else → the existing pin moves. Click **Update location** → saves the new coords.
+
+**Verify in DB**
+13. Prisma Studio → Owner table → that fleet's row → `latitude` and `longitude` columns populated with the saved values (rounded to ~5 decimal places).
+14. ActivityLogEntry → newest row with `type = "owner"` should have action `FLEET_LOCATION_SET` (first save) or `FLEET_LOCATION_UPDATED` (subsequent saves).
+
+**Kind-gating**
+15. Log in as an INDIVIDUAL host. Go to `/host/profile`. The Map Location card is **not rendered** (only FLEET hosts see it).
+
+### T21-B — INDIVIDUAL host picks a fleet via the map on `/host/cars/[id]/edit`
+
+**Setup**
+1. Have at least 2 VERIFIED fleets, both with locations set (from T21-A).
+2. Log in as a VERIFIED INDIVIDUAL host that owns at least one ACTIVE listing.
+
+**Trigger**
+3. Go to `/host/cars/[your-listing-id]/edit`.
+4. Scroll to the fleet-link section. Header should read **"Select a fleet operator near you to link your car"**.
+5. Click **Browse fleet operators** to expand the picker.
+
+**Map picker**
+6. The map renders with pins for every mapped fleet. Pins are dark gray by default.
+7. Click one pin → it turns blue and grows larger.
+8. Below the map, an info card appears with the fleet's name, service area, bio (first 200 chars), `N cars managed`, and a **View full profile →** link.
+9. Click another pin → previous pin returns to dark gray, new pin becomes blue, info card updates.
+10. Click **View full profile** → opens `/hosts/[fleetId]` in a new tab.
+
+**Unmapped fleets fallback**
+11. If any verified fleet has NULL lat/lng, an amber **"Other fleets (location not set)"** card appears below the map listing those fleets. Each entry is a clickable button — clicking selects that fleet (sets `fleetId` state) without a map pin highlight.
+
+**Submit the link request**
+12. With a fleet selected (from map or fallback list), optionally enter a management fee.
+13. Click **Submit request** → standard fleet-link request flow proceeds (same as before Tier 21).
+
+**Edge case: zero mapped fleets**
+14. If no verified fleets have set a location, the map renders with no pins and an amber overlay: "No verified fleets have set a location yet." All fleets appear in the fallback list.
+
+### T21-C — Map view on the public `/fleets` directory
+
+**Setup**
+1. Have at least 1 fleet with location set (from T21-A).
+
+**Public view**
+2. Open `/fleets` in incognito (no auth needed) or as any logged-in role.
+3. The page shows the existing header + a new map view between the header and the existing card grid.
+4. Pins appear for each mapped fleet.
+5. Click a pin → highlight + info card appears below with name, service area, bio, # cars, and **View profile →** button linking to `/hosts/[id]`.
+
+**Empty state**
+6. If no verified fleet has a pinned location, the map renders without pins; the overlay reads "No verified fleets have set a location yet." The card grid below still shows all fleets (mapped + unmapped) — the map just isn't useful without pins.
+
+### T21-D — SSR safety + dynamic loading
+
+1. View `/fleets` source HTML (right-click → View Page Source). The Leaflet map content should NOT be in the initial HTML — it loads client-side. Verifies the dynamic import with `ssr: false` works.
+2. On slow connections, you should briefly see "Loading map…" placeholder before the map appears. (Throttle network to "Slow 3G" in DevTools to test.)
+3. The page should NOT show any "ReferenceError: window is not defined" errors in the browser console or server logs.
+
+### T21-E — Validation + edge cases
+
+**Empty pin submission**
+1. As a FLEET host on `/host/profile`, do NOT drop a pin → the **Save location** button is disabled. Cannot submit without coords.
+
+**Invalid coords (action layer)**
+2. From the dev console, manually fire a form with `latitude=999, longitude=200`. Server action returns the error "Latitude must be between -90 and 90."
+
+**Kind-gating (action layer)**
+3. From the dev console, fire `updateFleetLocationAction` as a logged-in INDIVIDUAL host. Returns: "Only fleet operators can set a map location."
+
+**Existing fleets without location**
+4. Spot-check the seeded fleets in your DB. Until they explicitly set a location, they show in the `/host/cars/[id]/edit` picker's fallback list AND in the `/fleets` card grid (but not on the map).
+
+### T21-F — Fleet-link notification integration
+
+Tier 21 adds 4 new notification types to the Tier 20 system, all wired into `app/actions/fleet-links.ts`:
+- FLEET_LINK_REQUESTED — fleet operator gets a bell + email
+- FLEET_LINK_APPROVED — individual owner gets a bell + email
+- FLEET_LINK_REJECTED — individual owner gets a bell + email
+- FLEET_LINK_SEVERED — the OTHER party (whoever didn't sever) gets a bell + email
+
+**Request → Approve flow**
+1. As an INDIVIDUAL host with a verified, ACTIVE listing that has no fleet link, request a link to a fleet via the map picker on `/host/cars/[id]/edit`. Submit.
+2. Switch to the fleet operator's session. Their bell badge increments. Open it — top notification reads "New fleet-link request for [car name]" with "Open host dashboard" CTA.
+3. Click the notification → routes to `/host/dashboard` where the pending request is visible.
+4. The fleet operator approves the request.
+5. Switch to the individual host's session. Their bell badge increments. Open it — top notification reads "[Fleet name] approved managing your [car name]" with "View listing" CTA.
+
+**Request → Reject flow**
+6. As another INDIVIDUAL host, request a link to a fleet (different listing).
+7. Switch to fleet operator → reject the request.
+8. Individual host's bell shows "[Fleet name] couldn't take on your [car name]" with "Pick another fleet" CTA.
+
+**Sever flow (owner severs)**
+9. With an ACTIVE link in place, the individual host severs it from `/host/cars/[id]/edit`.
+10. Fleet operator's bell shows "[Owner name] severed their fleet link with you".
+
+**Sever flow (fleet severs)**
+11. As the fleet operator (with an ACTIVE link), navigate to the host dashboard and sever a managed link.
+12. Individual owner's bell shows "[Fleet name] ended fleet management of your [car name]".
+
+**Email side-channel**
+13. For each of the above, if `RESEND_API_KEY` is configured AND the recipient's email matches the Resend account owner (sandbox limitation), the email also arrives in their inbox.
+14. ActivityLogEntry shows a `NOTIFICATION_SENT` row for each fired notification with the correct recipient + type.
+
+**Tier 20 regression check**
+15. Trigger any unrelated event (e.g. admin verifies a pending customer). Bell + email still fire as before. Confirms Tier 21 didn't break the existing system.
+
+If all 6 sections pass, Tier 21 ships. The fleet picker is now visually impactful (a map of Metro Manila with named pins + hover info), fleets can self-serve their location, existing fleets without coords degrade gracefully into a fallback list, and fleet-link lifecycle events fire notifications end-to-end.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

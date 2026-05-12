@@ -717,7 +717,7 @@ Tier 17 fixes this by making submission a multi-step wizard: hosts fill basics �
 
 ---
 
-## Tier 21 — Proximity-aware fleet picker (interactive map) — locked design, not yet started
+## Tier 21 — Proximity-aware fleet picker (interactive map) — ✅ shipped
 
 When an independent owner opens the fleet picker on `/host/cars/[id]/edit`, today's dropdown sorts by `createdAt` with the fleet's free-text `serviceArea` as a label. Owners in different districts can't tell fleets apart at sub-city granularity (a Jaro fleet and a Mandurriao fleet both read "Iloilo City").
 
