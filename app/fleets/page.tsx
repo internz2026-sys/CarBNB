@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { ListingStatus, OwnerStatus } from "@/types";
 import { getCurrentViewer } from "@/lib/current-user";
 import { UserMenu } from "@/components/layout/user-menu";
+import { FleetsMapView } from "./fleets-map-view";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +40,8 @@ export default async function FleetsDirectoryPage() {
       fullName: true,
       bio: true,
       serviceArea: true,
+      latitude: true,
+      longitude: true,
       createdAt: true,
       _count: {
         select: {
@@ -48,6 +51,24 @@ export default async function FleetsDirectoryPage() {
       },
     },
   });
+
+  // Tier 21 — split into mapped (have lat/lng) for the map view, vs
+  // unmapped which appear only in the card grid below with a subtle
+  // "Location not set" hint.
+  const mappedFleets = fleets
+    .filter(
+      (f): f is typeof f & { latitude: number; longitude: number } =>
+        f.latitude !== null && f.longitude !== null,
+    )
+    .map((f) => ({
+      id: f.id,
+      displayName: f.companyName ?? f.fullName,
+      bio: f.bio,
+      serviceArea: f.serviceArea,
+      carsCount: f._count.cars + f._count.managedLinks,
+      latitude: f.latitude,
+      longitude: f.longitude,
+    }));
 
   const viewer = await getCurrentViewer();
 
@@ -134,7 +155,14 @@ export default async function FleetsDirectoryPage() {
             </p>
           </div>
         ) : (
-          <div className="grid gap-6 sm:grid-cols-2">
+          <>
+            {/* Tier 21 — map view above the card grid. Only mapped fleets
+                appear on the map; unmapped show in the cards below. */}
+            <div className="mb-8">
+              <FleetsMapView fleets={mappedFleets} />
+            </div>
+
+            <div className="grid gap-6 sm:grid-cols-2">
             {fleets.map((fleet) => {
               const displayName = fleet.companyName ?? fleet.fullName;
               const carCount = fleet._count.cars + fleet._count.managedLinks;
@@ -178,7 +206,8 @@ export default async function FleetsDirectoryPage() {
                 </Link>
               );
             })}
-          </div>
+            </div>
+          </>
         )}
       </section>
     </div>

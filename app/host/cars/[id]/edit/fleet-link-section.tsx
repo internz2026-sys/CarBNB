@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import dynamic from "next/dynamic";
 import { format } from "date-fns";
-import { Building2, ChevronDown, MapPin, X } from "lucide-react";
+import { Building2, ChevronDown, MapPin, X, Car as CarIcon } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -17,23 +18,35 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-} from "@/components/ui/select";
-import {
   cancelLinkRequestAction,
   requestLinkAction,
   severLinkAction,
   type FleetLinkActionState,
 } from "@/app/actions/fleet-links";
 
+// Tier 21 — Leaflet can't SSR. Dynamic import + ssr:false defers map load
+// until the client.
+const FleetPickerMap = dynamic(
+  () =>
+    import("@/components/map/fleet-picker-map").then((m) => m.FleetPickerMap),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid h-[24rem] w-full place-items-center rounded-xl border border-border bg-surface-container-low">
+        <p className="text-sm text-on-surface-variant">Loading map…</p>
+      </div>
+    ),
+  },
+);
+
 type FleetOption = {
   id: string;
   displayName: string;
   bio: string | null;
   serviceArea: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  carsCount: number;
 };
 
 type ExistingLink = {
@@ -252,18 +265,30 @@ function RequestLinkCard({
     );
   }
 
+  // Tier 21 — split fleets into mapped (have lat/lng) and unmapped
+  // (fallback list shown below the map). The picker is interactive only
+  // for mapped fleets; unmapped are pickable from the fallback list.
+  const mappedFleets = fleets.filter(
+    (f): f is FleetOption & { latitude: number; longitude: number } =>
+      f.latitude !== null && f.longitude !== null,
+  );
+  const unmappedFleets = fleets.filter(
+    (f) => f.latitude === null || f.longitude === null,
+  );
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Building2 className="size-4 text-primary" />
-          Request fleet management
+          Select a fleet operator near you to link your car
         </CardTitle>
         <CardDescription>
-          Pick a verified fleet operator to manage this car. They&apos;ll see your request
-          on their host dashboard and can approve or reject. Optional: propose a management
-          fee percentage that gets applied to each booking on this car (fee deduction
-          itself ships with accounting in a future tier).
+          Pick a verified fleet operator on the map to manage this car.
+          They&apos;ll see your request on their host dashboard and can
+          approve or reject. Optional: propose a management fee
+          percentage that gets applied to each booking on this car (fee
+          deduction itself ships with accounting in a future tier).
         </CardDescription>
       </CardHeader>
       <form action={formAction}>
@@ -275,49 +300,96 @@ function RequestLinkCard({
             <div className="rounded-md bg-red-50 p-3 text-sm text-red-700">{errorMessage}</div>
           ) : null}
 
-          <div className="space-y-2">
-            <Label>Fleet operator</Label>
-            <Select onValueChange={(v) => v && setFleetId(v)} value={fleetId}>
-              <SelectTrigger className="w-full">
-                <span className="truncate text-left">
-                  {selectedFleet ? selectedFleet.displayName : "Pick a verified fleet"}
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                {fleets.map((f) => (
-                  <SelectItem key={f.id} value={f.id}>
-                    <div className="flex flex-col">
-                      <span className="font-medium">{f.displayName}</span>
-                      {f.serviceArea ? (
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                          <MapPin className="size-3" />
-                          {f.serviceArea}
-                        </span>
-                      ) : null}
-                      {f.bio ? (
-                        <span className="text-xs text-muted-foreground line-clamp-1">{f.bio}</span>
-                      ) : null}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="space-y-3">
+            <FleetPickerMap
+              fleets={mappedFleets.map((f) => ({
+                id: f.id,
+                fullName: f.displayName,
+                companyName: f.displayName,
+                serviceArea: f.serviceArea,
+                bio: f.bio,
+                avgRating: null,
+                reviewCount: 0,
+                carsCount: f.carsCount,
+                latitude: f.latitude,
+                longitude: f.longitude,
+              }))}
+              onSelect={(id) => setFleetId(id ?? "")}
+              selectedFleetId={fleetId || null}
+            />
+
+            {selectedFleet ? (
+              <div className="rounded-xl bg-surface-container-low p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base font-bold text-on-surface">
+                      {selectedFleet.displayName}
+                    </p>
+                    {selectedFleet.serviceArea ? (
+                      <p className="mt-0.5 inline-flex items-center gap-1 text-xs font-semibold text-primary">
+                        <MapPin className="size-3" />
+                        {selectedFleet.serviceArea}
+                      </p>
+                    ) : null}
+                    {selectedFleet.bio ? (
+                      <p className="mt-2 line-clamp-2 text-xs text-on-surface-variant">
+                        {selectedFleet.bio}
+                      </p>
+                    ) : null}
+                    <p className="mt-2 inline-flex items-center gap-1 text-xs text-on-surface-variant">
+                      <CarIcon className="size-3" />
+                      {selectedFleet.carsCount}{" "}
+                      {selectedFleet.carsCount === 1 ? "car" : "cars"} managed
+                    </p>
+                  </div>
+                  <Link
+                    className="shrink-0 text-xs font-semibold text-primary hover:underline"
+                    href={`/hosts/${selectedFleet.id}`}
+                    target="_blank"
+                  >
+                    View full profile →
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-on-surface-variant">
+                Click a pin on the map to select a fleet.
+              </p>
+            )}
+
             {fieldErrors?.fleetId?.[0] ? (
               <p className="text-xs text-red-600">{fieldErrors.fleetId[0]}</p>
             ) : null}
-            {selectedFleet ? (
-              <div className="space-y-1">
-                {selectedFleet.serviceArea ? (
-                  <p className="inline-flex items-center gap-1 text-xs font-semibold text-primary">
-                    <MapPin className="size-3" />
-                    Service area: {selectedFleet.serviceArea}
-                  </p>
-                ) : null}
-                <p className="text-xs text-on-surface-variant">
-                  <Link className="text-primary hover:underline" href={`/hosts/${selectedFleet.id}`} target="_blank">
-                    View {selectedFleet.displayName} profile →
-                  </Link>
+
+            {unmappedFleets.length > 0 ? (
+              <div className="space-y-2 rounded-xl bg-amber-50 p-4">
+                <p className="text-xs font-semibold text-amber-900">
+                  Other fleets (location not set)
                 </p>
+                <ul className="space-y-1">
+                  {unmappedFleets.map((f) => (
+                    <li key={f.id}>
+                      <button
+                        className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-amber-100"
+                        onClick={() => setFleetId(f.id)}
+                        type="button"
+                      >
+                        <span
+                          className={
+                            f.id === fleetId
+                              ? "font-bold text-primary"
+                              : "font-medium text-on-surface"
+                          }
+                        >
+                          {f.displayName}
+                        </span>
+                        {f.serviceArea ? (
+                          <span className="text-amber-900">{f.serviceArea}</span>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ) : null}
           </div>

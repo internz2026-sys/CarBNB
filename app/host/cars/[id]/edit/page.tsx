@@ -130,6 +130,9 @@ export default async function HostEditListingPage({
             fullName: true,
             bio: true,
             serviceArea: true,
+            latitude: true,
+            longitude: true,
+            carsCount: true,
           },
           orderBy: { createdAt: "asc" },
         }),
@@ -269,6 +272,9 @@ export default async function HostEditListingPage({
             displayName: f.companyName ?? f.fullName,
             bio: f.bio,
             serviceArea: f.serviceArea,
+            latitude: f.latitude,
+            longitude: f.longitude,
+            carsCount: f.carsCount,
           }))}
           link={
             fleetLink && (fleetLink.status === "PENDING" || fleetLink.status === "ACTIVE")

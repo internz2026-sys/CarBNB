@@ -26,10 +26,11 @@ export const NotificationType = {
   // Reviews (Tier 10)
   REVIEW_POSTED: "REVIEW_POSTED",              // → host
 
-  // Tier 21+ trigger point (parked) — not used in Tier 20:
-  // FLEET_LINK_REQUESTED: "FLEET_LINK_REQUESTED",
-  // FLEET_LINK_APPROVED: "FLEET_LINK_APPROVED",
-  // FLEET_LINK_REJECTED: "FLEET_LINK_REJECTED",
+  // Fleet link lifecycle (Tier 21)
+  FLEET_LINK_REQUESTED: "FLEET_LINK_REQUESTED", // → fleet operator
+  FLEET_LINK_APPROVED: "FLEET_LINK_APPROVED",   // → individual owner
+  FLEET_LINK_REJECTED: "FLEET_LINK_REJECTED",   // → individual owner
+  FLEET_LINK_SEVERED: "FLEET_LINK_SEVERED",     // → the other party (whoever didn't sever)
 } as const;
 
 export type NotificationTypeKey = keyof typeof NotificationType;

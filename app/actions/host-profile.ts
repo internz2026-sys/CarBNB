@@ -227,3 +227,69 @@ export async function uploadHostDocumentAction(
   revalidatePath(`/owners/${owner.id}`);
   return { saved: true };
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// Tier 21 — Fleet location pin. Updates Owner.latitude + Owner.longitude
+// from a Leaflet pin drop on /host/profile. INDIVIDUAL hosts can't call
+// this — fleet location is FLEET-only by design (cross-cutting decision).
+// ─────────────────────────────────────────────────────────────────────────
+
+export async function updateFleetLocationAction(
+  _prev: HostProfileActionState,
+  formData: FormData,
+): Promise<HostProfileActionState> {
+  let owner: Awaited<ReturnType<typeof requireOwner>>;
+  try {
+    owner = await requireOwner();
+  } catch (err) {
+    return {
+      error: err instanceof Error ? err.message : "Authentication required.",
+    };
+  }
+
+  if (owner.kind !== "FLEET") {
+    return {
+      error: "Only fleet operators can set a map location.",
+    };
+  }
+
+  const latRaw = String(formData.get("latitude") ?? "").trim();
+  const lngRaw = String(formData.get("longitude") ?? "").trim();
+  const latitude = Number(latRaw);
+  const longitude = Number(lngRaw);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {
+      error: "Please drop a pin on the map before saving.",
+    };
+  }
+  if (latitude < -90 || latitude > 90) {
+    return { error: "Latitude must be between -90 and 90." };
+  }
+  if (longitude < -180 || longitude > 180) {
+    return { error: "Longitude must be between -180 and 180." };
+  }
+
+  const wasUnset = owner.latitude === null || owner.longitude === null;
+
+  await db.owner.update({
+    where: { id: owner.id },
+    data: { latitude, longitude },
+  });
+
+  await db.activityLogEntry.create({
+    data: {
+      action: wasUnset ? "FLEET_LOCATION_SET" : "FLEET_LOCATION_UPDATED",
+      description: `Fleet ${owner.fullName} (${owner.email}) ${
+        wasUnset ? "set their" : "updated their"
+      } map location to ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+      type: "owner",
+    },
+  });
+
+  revalidatePath("/host/profile");
+  revalidatePath(`/owners/${owner.id}`);
+  revalidatePath("/fleets");
+
+  return { saved: true };
+}
