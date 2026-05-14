@@ -14,7 +14,7 @@ import type {
 // Email send failures don't bubble up; the in-app notification is the
 // source of truth. Logged to ActivityLogEntry for audit.
 
-const EMAIL_FROM = "DriveXP <onboarding@resend.dev>";
+const EMAIL_FROM = "DriveXP <noreply@mail.drivexp.hoversight.agency>";
 const APP_URL =
   process.env.NEXT_PUBLIC_APP_URL ?? "https://drivexp-eta.vercel.app";
 
