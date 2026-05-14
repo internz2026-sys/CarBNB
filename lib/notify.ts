@@ -16,7 +16,7 @@ import type {
 
 const EMAIL_FROM = "DriveXP <noreply@mail.drivexp.hoversight.agency>";
 const APP_URL =
-  process.env.NEXT_PUBLIC_APP_URL ?? "https://drivexp-eta.vercel.app";
+  process.env.NEXT_PUBLIC_APP_URL ?? "https://drivexp.hoversight.agency";
 
 // Lazy singleton so the import is cheap when notify isn't called.
 let cachedClient: Resend | null = null;
