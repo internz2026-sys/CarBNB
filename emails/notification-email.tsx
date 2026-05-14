@@ -72,8 +72,8 @@ export function NotificationEmail({
             <Text style={styles.footerText}>
               You received this email because you have an account on
               DriveXP. Manage your account at{" "}
-              <a href="https://drivexp-eta.vercel.app" style={styles.footerLink}>
-                drivexp-eta.vercel.app
+              <a href="https://drivexp.hoversight.agency" style={styles.footerLink}>
+                drivexp.hoversight.agency
               </a>
               .
             </Text>
