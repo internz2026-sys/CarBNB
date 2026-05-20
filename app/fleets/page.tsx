@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { format } from "date-fns";
 import { Building2, MapPin, ShieldCheck } from "lucide-react";
 
 import { db } from "@/lib/db";
 import { ListingStatus, OwnerStatus } from "@/types";
 import { getCurrentViewer } from "@/lib/current-user";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 import { FleetsMapView } from "./fleets-map-view";
 
@@ -77,14 +77,7 @@ export default async function FleetsDirectoryPage() {
       <header className="sticky top-0 z-30 bg-[rgb(250_248_255_/_0.85)] shadow-[0_8px_24px_rgb(19_27_46_/_0.04)] backdrop-blur-lg">
         <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
           <Link className="flex items-center" href="/">
-            <Image
-              alt="DriveXP"
-              className="h-8 w-auto"
-              height={32}
-              priority
-              src="/driveXP-logo-wordmark.png"
-              width={129}
-            />
+            <BrandLogo />
           </Link>
           <div className="flex items-center gap-5">
             {viewer.kind === "customer" ? (

@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 
@@ -12,7 +13,9 @@ export type Viewer =
 // Resolve the current viewer's role by looking them up in the DB — auth
 // metadata can be spoofed, but DB rows are source of truth. Used by public
 // server pages that want to tailor their header/CTAs to the viewer.
-export async function getCurrentViewer(): Promise<Viewer> {
+// Wrapped in React.cache so the Supabase auth call + 3 findUniques only
+// run once per request even if multiple components ask for the viewer.
+export const getCurrentViewer = cache(async (): Promise<Viewer> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -45,4 +48,4 @@ export async function getCurrentViewer(): Promise<Viewer> {
     };
   }
   return { kind: "authenticated-unknown", email: user.email };
-}
+});

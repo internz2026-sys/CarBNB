@@ -15,6 +15,7 @@ import { db } from "@/lib/db";
 import { BookingStatus, OwnerStatus, ListingStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getCurrentViewer } from "@/lib/current-user";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 
 const peso = new Intl.NumberFormat("en-PH", {
@@ -174,14 +175,7 @@ export default async function LandingPage() {
       <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full bg-surface/70 px-4 py-3 shadow-[0_10px_30px_rgb(19_27_46_/_0.08)] backdrop-blur-xl sm:px-6">
           <Link className="flex items-center" href="/">
-            <Image
-              alt="DriveXP"
-              className="h-9 w-auto"
-              height={36}
-              priority
-              src="/driveXP-logo-wordmark.png"
-              width={145}
-            />
+            <BrandLogo size={9} />
           </Link>
 
           <nav className="hidden items-center gap-8 md:flex">
@@ -346,8 +340,9 @@ export default async function LandingPage() {
                     <Image
                       alt={`${featuredCars[0].brand} ${featuredCars[0].model}`}
                       className="object-cover"
+                      fetchPriority="high"
                       fill
-                      priority
+                      preload
                       sizes="(min-width: 1024px) 34vw, 100vw"
                       src={featuredCars[0].photos[0]}
                     />
@@ -824,13 +819,7 @@ export default async function LandingPage() {
         <div className="mx-auto grid max-w-7xl gap-12 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
           <ScrollReveal>
             <div>
-              <Image
-                alt="DriveXP"
-                className="h-10 w-auto"
-                height={40}
-                src="/driveXP-logo-wordmark.png"
-                width={161}
-              />
+              <BrandLogo eager={false} size={10} />
               <div className="mt-3 text-xs uppercase tracking-[0.24em] text-on-surface-variant">
                 Peer-to-peer marketplace
               </div>
