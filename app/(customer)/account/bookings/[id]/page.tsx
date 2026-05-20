@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { createClient } from "@/utils/supabase/server";
 import { BookingStatus, PaymentStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -81,14 +82,7 @@ export default async function CustomerBookingDetailPage({
       <header className="sticky top-0 z-30 bg-[rgb(250_248_255_/_0.85)] shadow-[0_8px_24px_rgb(19_27_46_/_0.04)] backdrop-blur-lg">
         <div className="mx-auto flex h-16 w-full max-w-4xl items-center justify-between px-4 sm:px-6">
           <Link className="flex items-center" href="/">
-            <Image
-              alt="DriveXP"
-              className="h-8 w-auto"
-              height={32}
-              priority
-              src="/driveXP-logo-wordmark.png"
-              width={129}
-            />
+            <BrandLogo />
           </Link>
           <Link
             className="text-sm font-semibold text-on-surface-variant hover:text-primary"

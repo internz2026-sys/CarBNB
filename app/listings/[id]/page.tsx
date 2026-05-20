@@ -23,6 +23,7 @@ import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getUnavailableDates } from "@/lib/availability";
 import { getPlatformSettings } from "@/lib/platform-settings-server";
 import { vehicleFeatureLabel } from "@/lib/listing-taxonomy";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { BookingCTA } from "./booking-cta";
 import { PhotoGallery } from "./photo-gallery";
 import { ReviewsLoadMore } from "./reviews-load-more";
@@ -224,14 +225,7 @@ export default async function ListingDetailPage({
             <ArrowLeft className="size-5" />
           </Link>
 
-          <Image
-            alt="DriveXP"
-            className="h-7 w-auto"
-            height={28}
-            priority
-            src="/driveXP-logo-wordmark.png"
-            width={113}
-          />
+          <BrandLogo size={7} />
 
           <div className="flex items-center gap-2">
             <button

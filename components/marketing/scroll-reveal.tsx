@@ -65,10 +65,10 @@ export default function ScrollReveal({
     <div
       ref={ref}
       className={cn(
-        "transition-[opacity,transform,filter] duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform] motion-reduce:translate-x-0 motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:blur-none motion-reduce:opacity-100 motion-reduce:transition-none",
+        "transition-[opacity,transform] duration-[800ms] ease-[cubic-bezier(0.22,1,0.36,1)] will-change-[opacity,transform] motion-reduce:translate-x-0 motion-reduce:translate-y-0 motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none",
         isVisible
-          ? "translate-x-0 translate-y-0 scale-100 blur-none opacity-100"
-          : cn("scale-[0.985] blur-[10px] opacity-0", getHiddenClass(from)),
+          ? "translate-x-0 translate-y-0 scale-100 opacity-100"
+          : cn("scale-[0.985] opacity-0", getHiddenClass(from)),
         className
       )}
       style={{

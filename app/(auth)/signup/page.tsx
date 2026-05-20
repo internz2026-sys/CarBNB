@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { ShieldCheck, UserRound } from "lucide-react";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -32,14 +32,7 @@ export default async function SignupPage({
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex items-center justify-between">
           <Link className="flex items-center" href="/">
-            <Image
-              alt="DriveXP"
-              className="h-10 w-auto"
-              height={40}
-              priority
-              src="/driveXP-logo-wordmark.png"
-              width={161}
-            />
+            <BrandLogo size={10} />
           </Link>
 
           <Link

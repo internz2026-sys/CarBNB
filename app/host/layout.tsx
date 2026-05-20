@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { redirect } from "next/navigation";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 import { NotificationBellServer } from "@/components/layout/notification-bell-server";
 import { getCurrentHost } from "@/lib/current-host";
@@ -23,14 +23,7 @@ export default async function HostLayout({
       <header className="sticky top-0 z-30 bg-[rgb(250_248_255_/_0.85)] shadow-[0_8px_24px_rgb(19_27_46_/_0.04)] backdrop-blur-lg">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-6 px-4 sm:px-6">
           <Link className="flex items-center" href="/host/dashboard">
-            <Image
-              alt="DriveXP"
-              className="h-8 w-auto"
-              height={32}
-              priority
-              src="/driveXP-logo-wordmark.png"
-              width={129}
-            />
+            <BrandLogo />
           </Link>
           <HostNav verified={session.kind === "verified"} />
           <div className="flex items-center gap-3">

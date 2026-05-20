@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { BrandLogo } from "@/components/layout/brand-logo";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
@@ -37,14 +37,7 @@ export default async function LoginPage({
           <div>
             <div className="flex items-center gap-3">
               <div className="grid size-12 place-items-center rounded-full bg-white p-2 shadow-[0_8px_20px_rgb(0_0_0_/_0.18)]">
-                <Image
-                  alt=""
-                  className="h-8 w-auto"
-                  height={32}
-                  priority
-                  src="/driveXP-logo-icon.png"
-                  width={23}
-                />
+                <BrandLogo alt="" variant="icon" />
               </div>
               <div>
                 <div className="font-headline text-2xl font-black tracking-tight">DriveXP</div>
@@ -91,14 +84,7 @@ export default async function LoginPage({
         <Card className="my-auto w-full rounded-[2.25rem] border-none bg-surface-container-lowest shadow-[0_22px_60px_rgb(19_27_46_/_0.08)]">
           <CardHeader className="space-y-3 px-6 pb-3 pt-8 text-center sm:px-8">
             <div className="flex justify-center lg:hidden">
-              <Image
-                alt="DriveXP"
-                className="h-12 w-auto"
-                height={48}
-                priority
-                src="/driveXP-logo-icon.png"
-                width={35}
-              />
+              <BrandLogo size={12} variant="icon" />
             </div>
             <CardTitle className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
               DriveXP Log-in
