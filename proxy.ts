@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { updateSession } from "@/utils/supabase/middleware";
 import { db } from "@/lib/db";
+import { OwnerStatus } from "@/types";
 
 // Admin-only routes. The (admin) route group in app/ doesn't appear in the
 // URL, so we match top-level path segments directly.
@@ -75,6 +76,22 @@ export async function proxy(request: NextRequest) {
     const owner = await db.owner.findUnique({ where: { email: user.email } });
     if (!owner) {
       return NextResponse.redirect(new URL("/", request.url));
+    }
+
+    // Tier 22 — required onboarding gate. A FLEET host with no map pin is
+    // invisible on /fleets and the owner→fleet picker, so we force them
+    // through the location step before any other /host page. The check is
+    // status-agnostic (PENDING and VERIFIED fleets are both prompted — this
+    // also catches existing fleets created before Tier 21), but SUSPENDED is
+    // excluded so the suspended locked dashboard isn't trapped in a redirect
+    // loop with the gate. The onboarding route itself is exempt.
+    if (
+      owner.kind === "FLEET" &&
+      (owner.latitude == null || owner.longitude == null) &&
+      owner.status !== OwnerStatus.SUSPENDED &&
+      !matchesAny(pathname, ["/host/onboarding"])
+    ) {
+      return NextResponse.redirect(new URL("/host/onboarding", request.url));
     }
   }
 

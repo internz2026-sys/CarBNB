@@ -24,6 +24,8 @@ This plan is the single source of truth for remaining work. The *Current state* 
 
 *Updated: 2026-05-06 (Tier 16 complete locally — fleet routing + parallel availability. New `lib/host-booking-authority.ts` + `lib/host-listing-authority.ts` resolvers centralize "who can act on this booking/listing" for both action layer + page guards. Booking authority routes Confirm/Reject/Start/Complete to the fleet on cars with an ACTIVE FleetCarLink; the individual owner sees an informational "Managed by [Fleet]" panel and a read-only chat (`viewerRole="host-readonly"` added). New activity codes `FLEET_BOOKING_*` mirror the Tier 13 `HOST_*` pattern; system messages now read "by [Fleet name]" when fleet acts. Availability rules + exceptions are editable by both individual + fleet; new `CarAvailabilityException.addedByOwnerId` audit column drives a "blocked by [name]" row hint. `/host/cars` and `/host/bookings` now include linked-car rows for fleet operators; `/host/cars/[id]/edit` page guard accepts fleet on active link and hides owner-only sections (details edit, photos, OR/CR, fleet-link request). MANUAL-TESTING.md gets Tier 16 sections A–F. Deferred to Tier 8: money-split deduction logic on `Booking.ownerPayout`. Tier 16 commit pending on `tier-16-complete`, deploys at the start of Tier 17.)*
 
+*Updated: 2026-05-23 (Tier 22 complete locally — required onboarding gate for the FLEET map pin. `proxy.ts` now redirects any FLEET host with a null `latitude`/`longitude` to a new focused `/host/onboarding` step before they can reach the rest of `/host/*` (status-agnostic so pre-Tier-21 fleets are caught too; SUSPENDED excluded to dodge a loop with the locked screen). The step reuses Tier 21's `LocationPickerMap` + `updateFleetLocationAction` and advances to the dashboard on save. Scope deliberately narrowed from the original Option C "gate all docs + pin" plan to just the FLEET pin — docs, customers, and individual hosts are unchanged. No schema change, no migration, no new server action. Tiers 17-21 also shipped between the last update and now; this section had lagged. Tier 22 on branch `tier-22-onboarding`, branched off `main` after the `chore/favicon` PRs (#22/#23) merged + deployed.)*
+
 ### Tier 1 — 100% complete locally, 0% deployed to prod
 
 **Local setup — done:**
@@ -193,6 +195,10 @@ When I'm about to execute a tier, cross-cutting decisions get handled this way:
 | Favorites scope | **Login required** — heart icon only works for logged-in customers; logged-out click bounces to `/login?redirectTo=...` | Tier 11 | No localStorage/anonymous merge logic. Single source of truth = `Favorite` table. |
 | Host public profile scope | **Listings + bio + member-since only** at `/hosts/[id]`. No response-rate / response-time / verified-badge stats | Tier 11 | Adds nullable `Owner.bio`. Member-since uses existing `Owner.createdAt`. Stats deferred to a future polish tier. |
 | Location search input | **Free-text + city chips coexist** — text input does case-insensitive partial match on `CarListing.location`; existing city chips remain below as quick-filter shortcuts | Tier 9 | Best of both: power users type, browsers tap chips. No schema change. |
+| Required onboarding scope | **FLEET map pin only.** Narrowed from the original "move docs + map pin into a required gate" plan: only the FLEET location pin becomes a required post-signup step. Document upload (host + customer) and the individual-host / customer flows stay exactly as the Tier 19 profile/verification pattern | Tier 22 | A FLEET with no pin is *silently broken* — invisible on `/fleets` and the owner→fleet picker, with no signal why. A skipped doc isn't silent: the account stays PENDING, the locked dashboard nudges, and the admin queue is already gated on doc presence. Forcing the pin buys real correctness; gating docs is large surface area for a problem the current flow mostly covers. |
+| Onboarding gate strength | **Hard gate in `proxy.ts`.** A FLEET host with null `latitude`/`longitude` is redirected to `/host/onboarding` from any `/host/*` path (the onboarding route itself is exempt). Status-agnostic so existing pre-Tier-21 fleets are also caught on next login, but **SUSPENDED is excluded** to avoid a redirect loop with the suspended locked dashboard | Tier 22 | "Required" should mean required — a soft dashboard card is easy to ignore, which is the problem being solved. Resumable for free: bail mid-step, next login lands back on the gate. |
+| Onboarding completion definition | **Derived from the artifact (no new column).** Gate fires when `kind == FLEET && (latitude == null || longitude == null)`. No `onboardingSubmittedAt` column, no migration | Tier 22 | Mirrors the Tier 19/21 "doc/pin presence is the implicit submit signal" convention. Avoids a schema change and a third implied state. |
+| Onboarding step location | **Dedicated `/host/onboarding` page**, FLEET-only, reusing `LocationPickerMap` + the existing `updateFleetLocationAction` (no new server action). On successful save the client advances to `/host/dashboard`. The `/host/profile` `FleetLocationSection` stays untouched for later edits | Tier 22 | A focused first-run beats overloading the profile page. Keeping the shared action unchanged means the profile editor's "stay on page + Saved." behaviour is preserved; only the onboarding wrapper redirects. |
 
 ### Deferred cross-cutting topics
 
@@ -807,6 +813,37 @@ Two nullable columns on Owner. No changes to CarListing (V1 skips per-car coords
 
 - **Tier 20 (Notifications)** should ship first so the new map-related events (fleet location set, link request) get notification coverage on day one.
 - No other blocking dependencies — schema migration is additive + nullable, all UI is new.
+
+---
+
+## Tier 22 — Required onboarding gate (FLEET map pin) — ✅ shipped
+
+Tier 21 made the fleet map pin *possible* (set it on `/host/profile`), but never *required*. A FLEET host who never drops a pin is silently absent from `/fleets` and the owner→fleet picker — the whole Tier 21 feature is dead for them, with no signal explaining why.
+
+Tier 22 makes the pin a **required post-signup step**: a hard gate in `proxy.ts` bounces any FLEET host with an unset location into a focused `/host/onboarding` step before they can reach the rest of `/host/*`.
+
+**Scope was deliberately narrowed** from the original Option C plan (which would have moved *all* document upload + the map pin into a required onboarding gate across host *and* customer flows). See the decisions table rows tagged Tier 22. Only the FLEET pin is gated; everything else (doc upload, individual hosts, customers, signup actions) is unchanged.
+
+### What shipped
+
+- **`proxy.ts`** — in the existing `/host/*` guard, after the owner lookup: if `kind == FLEET && pin missing && status != SUSPENDED && path != /host/onboarding` → redirect to `/host/onboarding`. Reuses the owner row the guard already fetches; no extra query.
+- **`app/host/onboarding/page.tsx`** — FLEET-only server page. Self-guards everyone the gate would never send (individual hosts, already-pinned fleets, suspended hosts) by redirecting them to `/host/dashboard`. Renders a focused "Set your fleet location" card.
+- **`app/host/onboarding/onboarding-location-form.tsx`** — client step. Reuses `LocationPickerMap` (dynamic, `ssr:false`) + the existing `updateFleetLocationAction`. On `{ saved: true }` it `router.replace("/host/dashboard")` — the gate no longer fires once the pin is set.
+
+### No schema change, no new server action, no migration
+
+The pin column (`Owner.latitude`/`longitude`) and `updateFleetLocationAction` already exist from Tier 21. Tier 22 is pure routing + one new page.
+
+### Out of scope (unchanged from current behaviour)
+
+- Document upload for hosts (`/host/profile`) and customers (`/account/verification`) — stays the Tier 19 derived-presence flow.
+- Individual-host onboarding — none; they go straight to the dashboard.
+- Customer onboarding — none.
+- Google/email signup actions — untouched; both paths converge on the gate naturally because a new FLEET row has a null pin.
+
+### Manual tests
+
+T22-A (new FLEET signup → forced to pin step → dashboard), T22-B (resumability — bail and re-login), T22-C (existing FLEET with null pin gated on next login), T22-D (regression — individual host + customer not gated), T22-E (post-pin: appears on `/fleets`, `/host/profile` edit still works), T22-F (suspended FLEET with no pin sees the locked screen, not the gate).
 
 ---
 

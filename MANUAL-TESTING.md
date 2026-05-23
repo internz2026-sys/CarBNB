@@ -2554,6 +2554,83 @@ If all 6 sections pass, Tier 21 ships. The fleet picker is now visually impactfu
 
 ---
 
+## Tier 22 — Required onboarding gate (FLEET map pin)
+
+Makes the Tier 21 fleet map pin a **required** post-signup step. A hard gate in `proxy.ts` redirects any FLEET host with an unset `latitude`/`longitude` to a focused `/host/onboarding` step before they can reach the rest of `/host/*`. The step reuses Tier 21's `LocationPickerMap` + `updateFleetLocationAction` and advances to the dashboard on save. Scope is intentionally narrow: only the FLEET pin is gated — document upload, individual hosts, and customers are unchanged. No schema change, no migration, no new server action.
+
+### Prerequisites
+
+- Local dev DB + server up (`npm run db:up`, `npm run dev`)
+- Prisma Studio for sections C and F (`npm run db:studio`)
+- Ability to create fresh FLEET signups (Supabase "Confirm email" OFF in dev)
+
+### T22-A — New FLEET signup is forced into the pin step
+
+1. Go to `/signup`. On the **Host** side, choose **Registered Car Rental Operator** (FLEET).
+2. Fill in company name, business registration number, service area, full name, a **fresh** email (e.g. `fleet-t22a@example.com`), and a password (≥ 8 chars). Submit.
+3. You should land on `/login?signedUp=fleet`. Log in with that same email/password on the **Host** tab.
+4. **EXPECT:** instead of the dashboard, you land on **`/host/onboarding`** — a "Set your fleet location" page with a map. The dashboard is not reachable yet.
+5. In the address bar, manually try `/host/dashboard`, then `/host/cars`. **EXPECT:** each one bounces you straight back to `/host/onboarding`.
+6. Click anywhere on the map to drop a pin (somewhere in Metro Manila), then drag it slightly to confirm dragging works. The button becomes enabled.
+7. Click **Save & continue**. **EXPECT:** you're taken to `/host/dashboard` — which shows the PENDING "awaiting approval" locked screen. You are no longer redirected to onboarding.
+8. Navigate to `/host/profile` → **Map Location** shows "Your location is set." with your pin.
+
+### T22-B — Resumability (bail mid-step, come back)
+
+1. Sign up a **second** fresh FLEET account (e.g. `fleet-t22b@example.com`) and log in on the **Host** tab.
+2. **EXPECT:** you land on `/host/onboarding`.
+3. **Without** dropping a pin or saving, bail out: open the user menu and **Log out** (or close the tab).
+4. Log back in with that same `fleet-t22b` account.
+5. **EXPECT:** you're returned to `/host/onboarding` — still gated, because the pin was never saved. The dashboard is still unreachable.
+6. Now drop a pin and click **Save & continue**.
+7. **EXPECT:** you reach `/host/dashboard` (PENDING locked screen), and from now on logins go straight there.
+
+### T22-C — A verified fleet with a cleared pin is still gated
+
+Proves the gate is tied to the missing pin, not to PENDING status — so existing pre-Tier-21 fleets get caught on their next login too.
+
+1. Prisma Studio → **Owner** table → `fleet-t22a@example.com` row.
+2. Edit and **Save**: set **status** to exactly `Verified`; clear **latitude** and **longitude** (both null).
+3. Back in the app, logged in as `fleet-t22a`, go to `/host/dashboard`.
+4. **EXPECT:** despite being Verified now, you're redirected to `/host/onboarding` — because the pin is null.
+5. Drop a pin and click **Save & continue**.
+6. **EXPECT:** you land on `/host/dashboard` and now see the **full verified host dashboard** (tiles), not the PENDING locked screen.
+
+### T22-D — Individual hosts and customers are NOT gated
+
+**Individual host**
+1. Sign up a fresh **Independent Car Owner** (INDIVIDUAL) host, or log in as an existing one, on the **Host** tab.
+2. **EXPECT:** you land on `/host/dashboard` normally — no redirect to `/host/onboarding`.
+3. Manually visit `/host/onboarding`. **EXPECT:** bounced to `/host/dashboard` (the page self-guards non-FLEET hosts).
+
+**Customer**
+4. Log out, then log in as a customer on the **Customer** tab.
+5. **EXPECT:** `/account` works normally — no onboarding redirect.
+6. Manually visit `/host/onboarding`. **EXPECT:** redirected to home `/` (a customer has no Owner row, so the host guard sends them home).
+
+### T22-E — Pinned fleet appears on /fleets, and profile editing still works
+
+1. Visit the public `/fleets` directory (logged out or as anyone). **EXPECT:** the `fleet-t22a` fleet shows as a pin; clicking it shows its info card.
+2. Log in as `fleet-t22a` → `/host/profile` → **Map Location**.
+3. Move the pin (click a new spot or drag), then click **Update location**.
+4. **EXPECT:** the page **stays on `/host/profile`** and shows "Saved." / "Your location is set." — it does NOT redirect to the dashboard. Confirms the profile editor is untouched.
+5. (Optional) Reload `/host/dashboard` — still the full verified dashboard, no gate.
+
+### T22-F — A suspended fleet with no pin sees the locked screen, not the gate
+
+The edge case that could have caused a redirect loop.
+
+1. Prisma Studio → `fleet-t22a@example.com` **Owner** row.
+2. Edit and **Save**: set **status** to exactly `Suspended`; clear **latitude** and **longitude** (both null).
+3. Logged in as `fleet-t22a`, go to `/host/dashboard`.
+4. **EXPECT:** the **suspended locked screen** (red shield) — not a redirect to `/host/onboarding`, and no "too many redirects" loop.
+5. Manually visit `/host/onboarding`. **EXPECT:** bounced to `/host/dashboard` (suspended screen). Still no loop.
+6. (Optional cleanup) Restore `fleet-t22a` to `Verified` + re-drop a pin to make the account usable again.
+
+If all 6 sections pass, Tier 22 ships. FLEET hosts can no longer end up silently absent from the map: the pin is required at first login, the gate is resumable, it catches pre-Tier-21 fleets, and it leaves individual hosts, customers, and document upload completely unchanged.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:
