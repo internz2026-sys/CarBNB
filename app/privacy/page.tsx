@@ -229,8 +229,8 @@ export default function PrivacyPolicyPage() {
             />
             <p>
               To exercise any of these rights, email{" "}
-              <a className="underline" href="mailto:support@hoversight.agency">
-                support@hoversight.agency
+              <a className="underline" href="mailto:accounts@zillamedia.co">
+                accounts@zillamedia.co
               </a>
               . We will respond within a reasonable time (and within any
               applicable statutory deadlines).
@@ -339,8 +339,8 @@ export default function PrivacyPolicyPage() {
             <p>
               For questions about this Privacy Policy or about how we handle
               your personal data, email{" "}
-              <a className="underline" href="mailto:support@hoversight.agency">
-                support@hoversight.agency
+              <a className="underline" href="mailto:accounts@zillamedia.co">
+                accounts@zillamedia.co
               </a>
               .
             </p>
