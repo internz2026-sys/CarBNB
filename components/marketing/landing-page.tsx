@@ -880,7 +880,7 @@ export default async function LandingPage() {
             <div>
               <h3 className="font-headline text-lg font-bold text-on-surface">Contact</h3>
               <div className="mt-5 space-y-3 text-sm text-on-surface-variant">
-                <div>support@drivexp.com</div>
+                <div>support@hoversight.agency</div>
                 <div>+63 917 000 0000</div>
                 <div>Built for Metro Manila hosts and renters.</div>
               </div>

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "The terms governing your use of the DriveXP peer-to-peer car rental marketplace.",
 };
 
-const LAST_UPDATED = "2026-05-08";
+const LAST_UPDATED = "2026-05-25";
 
 export default function TermsOfServicePage() {
   return (
@@ -42,19 +42,6 @@ export default function TermsOfServicePage() {
           </h1>
           <p className="mt-3 text-sm text-on-surface-variant">
             Last updated {LAST_UPDATED}
-          </p>
-        </div>
-
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold">Draft — pre-launch version.</p>
-          <p className="mt-1 text-xs">
-            This document is a pre-launch draft. The final version will be
-            reviewed by legal counsel before DriveXP accepts real bookings.
-            If you spot an inaccuracy, contact{" "}
-            <a className="underline" href="mailto:support@drivexp.com">
-              support@drivexp.com
-            </a>
-            .
           </p>
         </div>
 
@@ -281,8 +268,8 @@ export default function TermsOfServicePage() {
               breach of these Terms, abuse of the platform, fraud, or other
               behavior that endangers users. You may close your account at
               any time by emailing{" "}
-              <a className="underline" href="mailto:support@drivexp.com">
-                support@drivexp.com
+              <a className="underline" href="mailto:support@hoversight.agency">
+                support@hoversight.agency
               </a>
               . Closing your account does not erase records of past
               bookings; see our{" "}
@@ -315,8 +302,8 @@ export default function TermsOfServicePage() {
           <Section title="14. Contact us">
             <p>
               For questions about these Terms, email{" "}
-              <a className="underline" href="mailto:support@drivexp.com">
-                support@drivexp.com
+              <a className="underline" href="mailto:support@hoversight.agency">
+                support@hoversight.agency
               </a>
               .
             </p>

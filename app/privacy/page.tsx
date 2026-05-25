@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "How DriveXP collects, uses, and protects the personal data of hosts and customers on the marketplace.",
 };
 
-const LAST_UPDATED = "2026-05-08";
+const LAST_UPDATED = "2026-05-25";
 
 export default function PrivacyPolicyPage() {
   return (
@@ -42,19 +42,6 @@ export default function PrivacyPolicyPage() {
           </h1>
           <p className="mt-3 text-sm text-on-surface-variant">
             Last updated {LAST_UPDATED}
-          </p>
-        </div>
-
-        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p className="font-semibold">Draft — pre-launch version.</p>
-          <p className="mt-1 text-xs">
-            This document is a pre-launch draft. The final version will be
-            reviewed by legal counsel before DriveXP accepts real bookings.
-            If you spot an inaccuracy, contact{" "}
-            <a className="underline" href="mailto:support@drivexp.com">
-              support@drivexp.com
-            </a>
-            .
           </p>
         </div>
 
@@ -242,8 +229,8 @@ export default function PrivacyPolicyPage() {
             />
             <p>
               To exercise any of these rights, email{" "}
-              <a className="underline" href="mailto:support@drivexp.com">
-                support@drivexp.com
+              <a className="underline" href="mailto:support@hoversight.agency">
+                support@hoversight.agency
               </a>
               . We will respond within a reasonable time (and within any
               applicable statutory deadlines).
@@ -305,12 +292,55 @@ export default function PrivacyPolicyPage() {
             </p>
           </Section>
 
-          <Section title="12. Contact us">
+          <Section title="12. Google sign-in and Google user data">
+            <p>
+              If you choose &quot;Continue with Google&quot; to sign up or sign
+              in, we use Google&apos;s OAuth service to authenticate you. We
+              request only basic, non-sensitive profile information from your
+              Google Account:
+            </p>
+            <List
+              items={[
+                "Your name",
+                "Your email address",
+                "Your Google profile picture",
+                "Your Google account identifier",
+              ]}
+            />
+            <p>
+              We do <strong>not</strong> request access to your Gmail, Google
+              Drive, Contacts, Calendar, or any other Google service. We use
+              this information solely to create and secure your DriveXP account,
+              to recognize you when you sign in, and to pre-fill your name
+              during signup. We do not use Google user data for advertising,
+              and we do not sell it.
+            </p>
+            <p>
+              DriveXP&apos;s use and transfer of information received from
+              Google APIs to any other app will adhere to the{" "}
+              <a
+                className="underline"
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                rel="noopener noreferrer"
+                target="_blank"
+              >
+                Google API Services User Data Policy
+              </a>
+              , including the Limited Use requirements.
+            </p>
+            <p>
+              You can revoke DriveXP&apos;s access to your Google Account at any
+              time from your Google Account&apos;s security settings, under
+              &quot;Third-party apps with account access.&quot;
+            </p>
+          </Section>
+
+          <Section title="13. Contact us">
             <p>
               For questions about this Privacy Policy or about how we handle
               your personal data, email{" "}
-              <a className="underline" href="mailto:support@drivexp.com">
-                support@drivexp.com
+              <a className="underline" href="mailto:support@hoversight.agency">
+                support@hoversight.agency
               </a>
               .
             </p>
