@@ -268,8 +268,8 @@ export default function TermsOfServicePage() {
               breach of these Terms, abuse of the platform, fraud, or other
               behavior that endangers users. You may close your account at
               any time by emailing{" "}
-              <a className="underline" href="mailto:support@hoversight.agency">
-                support@hoversight.agency
+              <a className="underline" href="mailto:accounts@zillamedia.co">
+                accounts@zillamedia.co
               </a>
               . Closing your account does not erase records of past
               bookings; see our{" "}
@@ -302,8 +302,8 @@ export default function TermsOfServicePage() {
           <Section title="14. Contact us">
             <p>
               For questions about these Terms, email{" "}
-              <a className="underline" href="mailto:support@hoversight.agency">
-                support@hoversight.agency
+              <a className="underline" href="mailto:accounts@zillamedia.co">
+                accounts@zillamedia.co
               </a>
               .
             </p>
