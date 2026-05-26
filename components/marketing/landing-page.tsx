@@ -342,7 +342,7 @@ export default async function LandingPage() {
                       className="object-cover"
                       fetchPriority="high"
                       fill
-                      preload
+                      priority
                       sizes="(min-width: 1024px) 34vw, 100vw"
                       src={featuredCars[0].photos[0]}
                     />
