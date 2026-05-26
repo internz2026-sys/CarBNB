@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -113,6 +114,18 @@ export function CompleteProfileForm({
       <Button className="mt-2 w-full" disabled={pending} type="submit">
         {pending ? "Finalizing..." : submitLabel}
       </Button>
+
+      <p className="text-center text-xs leading-5 text-on-surface-variant">
+        By creating an account, you agree to DriveXP's{" "}
+        <Link className="font-semibold text-primary hover:underline" href="/terms" target="_blank">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link className="font-semibold text-primary hover:underline" href="/privacy" target="_blank">
+          Privacy Policy
+        </Link>
+        .
+      </p>
     </form>
   );
 }

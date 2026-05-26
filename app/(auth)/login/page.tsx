@@ -1,19 +1,15 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LoginForm } from "./login-form";
 
 // Maps `?error=...` codes the OAuth callback emits when Google sign-in lands
-// somewhere it can't proceed. Kept here so the strings live alongside the
-// page that renders them and aren't smeared across the codebase.
+// somewhere it can't proceed. With the unified login form there are no longer
+// role tabs to mismatch against, so `customer_exists` / `host_exists` are
+// unreachable from this page and have been removed.
 const LOGIN_ERROR_MESSAGES: Record<string, string> = {
   oauth_failed:
     "Couldn't complete Google sign-in. Please try again, or sign in with email.",
-  customer_exists:
-    "This email is registered as a customer account. Please use the Customer tab.",
-  host_exists:
-    "This email is registered as a host account. Please use the Host tab.",
   no_account:
     "No account found for that email. Please sign up first.",
 };
@@ -49,14 +45,14 @@ export default async function LoginPage({
 
             <div className="mt-14 max-w-xl">
               <div className="inline-flex rounded-full bg-white/12 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.24em] text-white/80">
-                Choose your portal
+                Welcome back
               </div>
               <h1 className="mt-6 font-headline text-5xl font-extrabold leading-[1.02] tracking-tight">
-                One marketplace, two tailored ways to log in.
+                One sign-in for hosts, renters, and operators.
               </h1>
               <p className="mt-6 max-w-lg text-lg leading-8 text-white/82">
-                Hosts manage the business of their vehicles while customers move through
-                discovery, booking, and trip planning with a calmer flow.
+                Use the email you signed up with — we'll route you to the right
+                place automatically.
               </p>
             </div>
           </div>
@@ -64,7 +60,7 @@ export default async function LoginPage({
           <div className="grid gap-4">
             <div className="rounded-[1.5rem] bg-white/10 p-5 backdrop-blur-sm">
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/68">
-                Host Access
+                Hosts
               </div>
               <p className="mt-2 text-sm leading-6 text-white/82">
                 Listings, availability, bookings, accounting, and platform operations.
@@ -72,7 +68,7 @@ export default async function LoginPage({
             </div>
             <div className="rounded-[1.5rem] bg-white/10 p-5 backdrop-blur-sm">
               <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/68">
-                Customer Access
+                Renters
               </div>
               <p className="mt-2 text-sm leading-6 text-white/82">
                 Saved cars, trip preferences, and a cleaner reservation experience.
@@ -87,10 +83,10 @@ export default async function LoginPage({
               <BrandLogo size={12} variant="icon" />
             </div>
             <CardTitle className="font-headline text-3xl font-extrabold tracking-tight text-on-surface">
-              DriveXP Log-in
+              Sign in to DriveXP
             </CardTitle>
             <CardDescription className="mx-auto max-w-md text-sm leading-6 text-on-surface-variant">
-              Sign in with the experience that matches how you use the marketplace.
+              Enter your email and password — we'll take you to your dashboard.
             </CardDescription>
           </CardHeader>
 
@@ -105,40 +101,20 @@ export default async function LoginPage({
                 Account created. Check your email to confirm, then sign in below.
               </div>
             ) : null}
-            <Tabs className="gap-0" defaultValue={signedUp === "customer" ? "customer" : "host"}>
-              <TabsList className="grid h-13 w-full grid-cols-2 rounded-full bg-surface-container-highest p-1">
-                <TabsTrigger
-                  className="rounded-full border-none text-sm font-semibold text-on-surface-variant after:hidden data-active:bg-surface-container-lowest data-active:text-primary data-active:shadow-[0_8px_18px_rgb(19_27_46_/_0.06)]"
-                  value="host"
-                >
-                  Car Owner / Host
-                </TabsTrigger>
-                <TabsTrigger
-                  className="rounded-full border-none text-sm font-semibold text-on-surface-variant after:hidden data-active:bg-surface-container-lowest data-active:text-primary data-active:shadow-[0_8px_18px_rgb(19_27_46_/_0.06)]"
-                  value="customer"
-                >
-                  Customer
-                </TabsTrigger>
-              </TabsList>
 
-              <TabsContent className="focus-visible:outline-none focus-visible:ring-0" value="host">
-                <LoginForm redirectTo={redirectTo} role="host" />
-              </TabsContent>
-
-              <TabsContent
-                className="focus-visible:outline-none focus-visible:ring-0"
-                value="customer"
-              >
-                <LoginForm redirectTo={redirectTo} role="customer" />
-              </TabsContent>
-            </Tabs>
+            <LoginForm redirectTo={redirectTo} />
           </CardContent>
 
           <CardFooter className="flex-col items-start gap-3 px-6 pb-8 pt-6 sm:px-8">
-            <div className="rounded-[1.25rem] bg-surface-container-low p-4 text-sm leading-6 text-on-surface-variant">
-              Need an account first? Use the sign-up actions above to create either a host
-              account or a customer account.
-            </div>
+            <p className="w-full text-center text-sm text-on-surface-variant">
+              Don't have an account?{" "}
+              <Link
+                className="font-semibold text-primary hover:underline"
+                href="/signup"
+              >
+                Register now
+              </Link>
+            </p>
             <p className="w-full text-center text-xs text-on-surface-variant">
               DriveXP MVP Prototype Version 1.0.0
             </p>

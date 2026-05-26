@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Building2, ChevronLeft, UserRound } from "lucide-react";
+import { useActionState } from "react";
+import Link from "next/link";
+import { ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,74 +10,18 @@ import { signupAction, type AuthState } from "@/app/(auth)/actions";
 import { GoogleSignInButton } from "@/app/(auth)/google-sign-in-button";
 import { cn } from "@/lib/utils";
 
-// Tier 15 onboarding: hosts pick a kind first (Independent vs Fleet) before
-// seeing the signup form. The choice is locked at signup. Different kinds
-// get slightly different forms — fleets need company name + business reg
-// number alongside the contact person's details.
+// Tier 15 onboarding: hosts pick a kind (Independent vs Fleet) before seeing
+// the signup form. The choice is locked at signup. Different kinds get
+// slightly different forms — fleets need company name + business reg number
+// alongside the contact person's details.
+//
+// The kind chooser used to live in this file as Step 1; the unified register
+// page now does role+kind selection at the top level (Renter / Independent /
+// Fleet), so this component only renders the form for an already-chosen kind.
 
-type HostKind = "INDIVIDUAL" | "FLEET";
+export type HostKind = "INDIVIDUAL" | "FLEET";
 
-const KINDS: Array<{
-  value: HostKind;
-  title: string;
-  caption: string;
-  Icon: typeof UserRound;
-}> = [
-  {
-    value: "INDIVIDUAL",
-    title: "Independent Car Owner",
-    caption:
-      "I have my own car and want to rent it out myself. I'll handle pickups, drop-offs, and customer messages.",
-    Icon: UserRound,
-  },
-  {
-    value: "FLEET",
-    title: "Registered Car Rental Operator",
-    caption:
-      "I run a rental company and want to manage cars on behalf of multiple owners. I have a registered business.",
-    Icon: Building2,
-  },
-];
-
-export function HostSignupFlow() {
-  const [kind, setKind] = useState<HostKind | null>(null);
-
-  if (kind === null) {
-    return (
-      <div className="space-y-3">
-        <p className="text-sm font-semibold text-on-surface-variant">
-          Tell us a bit about yourself.
-        </p>
-        {KINDS.map(({ value, title, caption, Icon }) => (
-          <button
-            className="group flex w-full items-start gap-4 rounded-2xl border border-border bg-surface-container-lowest p-4 text-left transition hover:border-primary hover:bg-surface-container focus:outline-none focus:ring-2 focus:ring-primary"
-            key={value}
-            onClick={() => setKind(value)}
-            type="button"
-          >
-            <div className="grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-on-primary">
-              <Icon className="size-6" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h3 className="font-headline text-base font-bold text-on-surface">
-                {title}
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-on-surface-variant">
-                {caption}
-              </p>
-            </div>
-          </button>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <HostFormForKind kind={kind} onBack={() => setKind(null)} />
-  );
-}
-
-function HostFormForKind({
+export function HostSignupForm({
   kind,
   onBack,
 }: {
@@ -169,7 +114,6 @@ function HostFormForKind({
             {isFleet ? "Contact Person — Full Name" : "Full Name"}
           </Label>
           <Input
-            defaultValue={state?.email ? "" : ""}
             id="signup-fullName"
             name="fullName"
             placeholder={isFleet ? "e.g. Maria Santos" : "e.g. Alex Rivera"}
@@ -203,6 +147,18 @@ function HostFormForKind({
         <Button className="mt-2 w-full" disabled={pending} type="submit">
           {pending ? "Creating account..." : submitLabel}
         </Button>
+
+        <p className="text-center text-xs leading-5 text-on-surface-variant">
+          By creating an account, you agree to DriveXP's{" "}
+          <Link className="font-semibold text-primary hover:underline" href="/terms" target="_blank">
+            Terms of Service
+          </Link>{" "}
+          and{" "}
+          <Link className="font-semibold text-primary hover:underline" href="/privacy" target="_blank">
+            Privacy Policy
+          </Link>
+          .
+        </p>
       </form>
     </div>
   );

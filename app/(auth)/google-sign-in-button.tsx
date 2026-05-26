@@ -9,7 +9,8 @@ type Kind = "INDIVIDUAL" | "FLEET";
 // Renders a "Continue with Google" button that posts to the OAuth server
 // action. Stays a server component — the action handles the redirect to
 // Google directly, so no client-side state machine is needed. Hidden inputs
-// carry the routing hints the callback uses to enforce tab/role rules.
+// carry the routing hints the callback uses for signup; login omits `role`
+// so the callback routes by whatever Owner/Customer record already exists.
 export function GoogleSignInButton({
   intent,
   role,
@@ -17,7 +18,7 @@ export function GoogleSignInButton({
   label,
 }: {
   intent: Intent;
-  role: Role;
+  role?: Role;
   kind?: Kind;
   label?: string;
 }) {
@@ -26,7 +27,7 @@ export function GoogleSignInButton({
   return (
     <form action={signInWithGoogleAction}>
       <input name="intent" type="hidden" value={intent} />
-      <input name="role" type="hidden" value={role} />
+      {role ? <input name="role" type="hidden" value={role} /> : null}
       {kind ? <input name="kind" type="hidden" value={kind} /> : null}
       <button
         className={cn(
