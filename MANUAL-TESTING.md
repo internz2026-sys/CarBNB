@@ -2631,6 +2631,133 @@ If all 6 sections pass, Tier 22 ships. FLEET hosts can no longer end up silently
 
 ---
 
+## Chore — Unified login + register
+
+Collapses the two-tab login (`Host` / `Customer`) into a single email-and-password form on `/login`. The system routes by whatever record exists for the email — admin → `/dashboard`, owner → `/host/dashboard` (or `/host/onboarding` for an ungated FLEET), customer → `/account`. Cross-links the two screens: `/login` gets a "Don't have an account? Register now" link; `/signup` gets an "Already have an account? Log in" link. The register page becomes a **three-card chooser** — Renter / Independent Car Owner / Registered Car Rental Operator — that opens the matching form. Consent is **implicit**: every signup form (and the OAuth-completion form) shows *"By creating an account, you agree to DriveXP's Terms of Service and Privacy Policy"* directly below the submit button; no checkbox, no disabled state on the Google button. The tab-mismatch validation in `loginAction` is removed (no tabs to mismatch); the OAuth callback was already capable of routing without a `role` hint, so no callback or DB changes were needed.
+
+### Prerequisites
+
+- Local dev DB + server up (`npm run db:up`, `npm run dev`)
+- At least one of each role you can log in as: admin, an existing host (owner), an existing customer
+- Supabase "Confirm email" OFF in dev so fresh signups can immediately log in
+- (Optional, section F) a Google account already linked from a prior Tier 18 signup, and a fresh Google account that's never signed up
+
+### ULR-A — Unified login: one form, role-aware routing
+
+1. Visit `/login`.
+2. **EXPECT:** **No Host / Customer tabs.** Only one card with a "Continue with Google" button, then a single Email + Password form below it, then a **"Don't have an account? Register now"** link in the footer that points at `/signup`.
+3. The left-side hero rail still shows DriveXP branding and a "Welcome back" badge (just no tab copy).
+4. Try logging in as your **admin** account. **EXPECT:** redirected to `/dashboard`.
+5. Log out, then log in as an existing **host (owner)** account. **EXPECT:** redirected to `/host/dashboard` (or `/host/onboarding` if it's a FLEET without a pin — Tier 22 still in effect).
+6. Log out, then log in as an existing **customer** account. **EXPECT:** redirected to `/account`.
+7. Log out. From `/login`, enter a real email but a **wrong password**. **EXPECT:** red error appears under the form, the email stays filled in, you stay on `/login`.
+8. From `/login`, enter an email that **doesn't exist at all**. **EXPECT:** Supabase's "Invalid login credentials" error, you stay on `/login`.
+9. Click the **"Register now"** link in the footer. **EXPECT:** lands on `/signup`.
+
+### ULR-B — Register page: chooser layout + cross-links
+
+1. From `/login` click **"Register now"** (or visit `/signup` directly).
+2. **EXPECT:** the page header reads **"Create your DriveXP account."** with a single card titled **"Register"**. No more side-by-side Host/Customer cards.
+3. Inside the Register card, the description reads **"Already have an account? Log in."** with **"Log in"** as a link.
+4. Below that, you see exactly **three** stacked option buttons, each with an icon + title + caption:
+   - **Renter** — "I want to book and rent cars from hosts on the marketplace."
+   - **Independent Car Owner** — "I own a car and want to rent it out myself…"
+   - **Registered Car Rental Operator** — "I run a rental company and want to manage cars on behalf of multiple owners…"
+5. **EXPECT:** none of the three forms are visible yet — only the chooser.
+6. Click the **"Log in"** link in the card description. **EXPECT:** lands on `/login`.
+7. Go back to `/signup`. Click the **"Back to Log-in"** pill in the top-right of the page. **EXPECT:** lands on `/login`.
+8. Return to `/signup`. Click **"Renter"**. **EXPECT:** the chooser disappears and the Renter signup form appears with a **"Change account type"** back button at the top.
+9. Click **"Change account type"**. **EXPECT:** the three-card chooser returns; nothing is pre-selected.
+10. Repeat steps 8–9 for **"Independent Car Owner"** and **"Registered Car Rental Operator"** — both should show their form and let you go back to the chooser cleanly.
+
+### ULR-C — Renter signup: implicit-consent line + happy path
+
+1. From `/signup` click **"Renter"**.
+2. **EXPECT:** the form shows: "Continue with Google" → "OR SIGN UP WITH EMAIL" divider → Full Name, Email, Password fields → **"Create Renter Account"** submit button → and **immediately below the button**, a centered small grey line: *"By creating an account, you agree to DriveXP's **Terms of Service** and **Privacy Policy**."*
+3. **EXPECT:** **NO checkbox** anywhere. Both the **"Sign up with Google"** button and the **"Create Renter Account"** submit button are **enabled at first paint** — no greyed-out state.
+4. Click the **"Terms of Service"** link in the consent line. **EXPECT:** opens `/terms` in a **new tab**.
+5. Click the **"Privacy Policy"** link. **EXPECT:** opens `/privacy` in a **new tab**.
+6. Back on the signup tab, click **"Change account type"**. **EXPECT:** returns cleanly to the 3-card chooser.
+7. Re-pick **"Renter"**. Fill the form:
+   - Full Name: `Test Renter`
+   - Email: a **fresh** email you haven't used, e.g. `renter-ulrc@example.com`
+   - Password: at least 8 characters
+8. Click **"Create Renter Account"**.
+9. **EXPECT:** you land on `/login?signedUp=customer` and see the green success banner.
+10. Sign in on the unified login form with that same email/password.
+11. **EXPECT:** redirected to `/account` — the customer landing page.
+12. Log out.
+
+### ULR-D — Independent Car Owner signup: happy path
+
+1. From `/signup` click **"Independent Car Owner"**.
+2. **EXPECT:** the form shows:
+   - **"Change account type"** back button at the top
+   - A small **"Independent Car Owner"** badge pill (light primary tint)
+   - **"Sign up with Google"** button → "OR SIGN UP WITH EMAIL" divider → **Full Name**, **Email**, **Password** fields
+   - **NO Fleet-only fields** (no Company Name, no Business Registration Number, no Service Area)
+   - **"Create Host Account"** submit button
+   - Below the button: the same centered consent line.
+3. **EXPECT:** **no checkbox** anywhere; both Google button and submit are **enabled at first paint**.
+4. Click **"Change account type"** → returns cleanly to the 3-card chooser.
+5. Re-pick **"Independent Car Owner"**. Fill the form:
+   - Full Name: `Test Independent Host`
+   - Email: a **fresh** email, e.g. `host-ulrd@example.com`
+   - Password: at least 8 characters
+6. Click **"Create Host Account"**.
+7. **EXPECT:** lands on `/login?signedUp=host` with the green success banner.
+8. Sign in on the unified login form with that same email/password.
+9. **EXPECT:** redirected to `/host/dashboard` — and because this is a fresh, unverified INDIVIDUAL host, you should see the **PENDING locked screen** (awaiting approval), not the full dashboard tiles. (No `/host/onboarding` redirect — that gate is FLEET-only.)
+10. Log out.
+
+### ULR-E — Registered Car Rental Operator (FLEET) signup
+
+1. From `/signup` click **"Registered Car Rental Operator"**.
+2. **EXPECT:** the form shows:
+   - **"Change account type"** back button at the top
+   - A small **"Registered Car Rental Operator"** badge pill (tertiary tint, distinct from the Independent one)
+   - **"Sign up with Google"** button → "OR SIGN UP WITH EMAIL" divider
+   - **Fleet-only fields first**: Company Name, Business Registration Number, Service Area (with the helper text *"Public — independent owners use this to pick a fleet near their car…"*)
+   - Then **Contact Person — Full Name**, Email, Password
+   - **"Create Fleet Account"** submit button
+   - Below the button: the same centered consent line.
+3. **EXPECT:** **no checkbox** anywhere; both Google button and submit are **enabled at first paint**.
+4. Fill the form:
+   - Company Name: `Acme Rentals Inc.`
+   - Business Registration Number: `DTI-12345`
+   - Service Area: `Makati · BGC · Metro Manila`
+   - Contact Person — Full Name: `Maria Santos`
+   - Email: a **fresh** email, e.g. `fleet-ulre@example.com`
+   - Password: at least 8 characters
+5. Click **"Create Fleet Account"**.
+6. **EXPECT:** lands on `/login?signedUp=fleet` with the green success banner.
+7. Sign in on the unified login form with that same email/password.
+8. **EXPECT:** redirected to **`/host/onboarding`** (Tier 22 FLEET pin gate still applies). Drop a pin on the map and click **"Save & continue"**.
+9. **EXPECT:** lands on `/host/dashboard` PENDING locked screen.
+10. Log out.
+
+### ULR-F — Google OAuth: still routes correctly through the unified flow
+
+This section is best-effort — it requires real Google OAuth in dev. Skip the optional new-Google-account step if you don't have one handy.
+
+**Existing-account login (no role hint):**
+1. From `/login`, click **"Continue with Google"**.
+2. Complete Google auth with a Google account that already has an Owner or Customer row (from prior Tier 18 testing).
+3. **EXPECT:** routed straight to `/host/dashboard` (if Owner exists), `/account` (if Customer), or `/dashboard` (if Admin). There is no role-mismatch error possible anymore because login no longer carries a role hint.
+4. Log out.
+
+**Fresh Google account signup (optional):**
+5. From `/signup`, click **"Renter"**, then **"Sign up with Google"**.
+6. Complete Google auth with a Google account that has **never** signed up here.
+7. **EXPECT:** lands on `/signup/complete?role=customer` with the **Full Name pre-filled** from your Google profile.
+8. **EXPECT:** **no checkbox** on the completion form; the consent line *"By creating an account, you agree to DriveXP's Terms of Service and Privacy Policy"* appears below the submit button; the submit button is **enabled at first paint**.
+9. Click **"Create Customer Account"**.
+10. **EXPECT:** lands on `/account`.
+
+If sections A–E pass, the chore ships. ULR-F is a regression check for the OAuth path and is best run against a deployed environment with Google OAuth credentials wired up.
+
+---
+
 ## Adding a new tier
 
 When you ship a new tier (T16+), append a section here following the same structure:

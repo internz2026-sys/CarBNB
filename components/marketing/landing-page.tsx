@@ -543,7 +543,7 @@ export default async function LandingPage() {
                 <div className="mt-10 flex flex-wrap gap-4">
                   <Link
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,var(--color-primary)_0%,var(--color-primary-container)_100%)] px-7 py-3.5 text-base font-bold text-on-primary shadow-[0_12px_30px_rgb(0_82_204_/_0.18)] transition hover:opacity-95"
-                    href="/signup#host"
+                    href="/signup"
                   >
                     Sign up as an operator
                     <ArrowRight className="size-4" />

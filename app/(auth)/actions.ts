@@ -85,7 +85,6 @@ export async function loginAction(
 ): Promise<AuthState> {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
-  const selectedRole = formData.get("selectedRole");
   const redirectToRaw = formData.get("redirectTo");
   const redirectTo = sanitizeRedirectTo(
     typeof redirectToRaw === "string" ? redirectToRaw : null,
@@ -98,37 +97,9 @@ export async function loginAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) return { error: error.message, email };
 
-  // Tab-mismatch validation: the login page has Host and Customer tabs. If
-  // the user picked the wrong tab for their account, bail out cleanly.
-  // Admins are excluded — they log in via whichever tab they happen to pick.
-  if (selectedRole === "host" || selectedRole === "customer") {
-    const [admin, owner, customer] = await Promise.all([
-      db.user.findUnique({ where: { email } }),
-      db.owner.findUnique({ where: { email } }),
-      db.customer.findUnique({ where: { email } }),
-    ]);
-    if (!admin) {
-      if (selectedRole === "host" && !owner) {
-        await supabase.auth.signOut();
-        return {
-          error:
-            "This email is registered as a customer account. Please use the Customer tab.",
-          email,
-        };
-      }
-      if (selectedRole === "customer" && !customer) {
-        await supabase.auth.signOut();
-        return {
-          error:
-            "This email is registered as a host account. Please use the Host tab.",
-          email,
-        };
-      }
-    }
-  }
-
-  // Explicit `redirectTo` wins (came from proxy.ts when the user was on a
-  // guarded route); otherwise fall back to the default for their role.
+  // Unified login: one form, no role tabs. We resolve the destination from
+  // whichever Owner/Customer/User row exists for this email. The prior
+  // tab-mismatch check is gone with the tabs.
   const destination = redirectTo ?? (await resolveRoleRedirect(email));
   redirect(destination);
 }
