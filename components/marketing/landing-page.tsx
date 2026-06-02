@@ -11,10 +11,9 @@ import {
   Star,
 } from "lucide-react";
 import ScrollReveal from "@/components/marketing/scroll-reveal";
-import { db } from "@/lib/db";
-import { BookingStatus, OwnerStatus, ListingStatus } from "@/types";
 import { resolveListingPhotoUrl } from "@/lib/listing-assets";
 import { getCurrentViewer } from "@/lib/current-user";
+import { getLandingPageData } from "@/lib/cached-queries";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 
@@ -105,39 +104,17 @@ function initialsFor(name: string) {
 
 export default async function LandingPage() {
   const viewer = await getCurrentViewer();
-  const [verifiedOwners, activeTrips, activeListings, distinctCities, hostEarningsAgg, testimonialOwner, testimonialCustomer] = await Promise.all([
-    db.owner.count({ where: { status: OwnerStatus.VERIFIED } }),
-    db.booking.count({
-      where: {
-        status: {
-          in: [BookingStatus.COMPLETED, BookingStatus.CONFIRMED, BookingStatus.ONGOING],
-        },
-      },
-    }),
-    db.carListing.findMany({
-      where: { status: ListingStatus.ACTIVE },
-      orderBy: { createdAt: "desc" },
-      take: 3,
-      include: { owner: { select: { fullName: true, status: true } } },
-    }),
-    db.carListing.findMany({
-      where: { status: ListingStatus.ACTIVE },
-      select: { location: true },
-    }),
-    db.owner.aggregate({
-      _sum: { totalEarnings: true },
-    }),
-    db.owner.findFirst({
-      where: { status: OwnerStatus.VERIFIED },
-      orderBy: { createdAt: "asc" },
-    }),
-    db.customer.findFirst({ orderBy: { createdAt: "asc" } }),
-  ]);
+  const {
+    verifiedOwners,
+    activeTrips,
+    cityCoverage,
+    totalHostEarnings,
+    featured,
+    testimonialOwnerName,
+    testimonialCustomerName,
+  } = await getLandingPageData();
 
-  const cityCoverage = new Set(distinctCities.map((l) => l.location)).size;
-  const totalHostEarnings = hostEarningsAgg._sum.totalEarnings ?? 0;
-
-  const featuredCars = activeListings.map((car, idx) => ({
+  const featuredCars = featured.map((car, idx) => ({
     id: car.id,
     brand: car.brand,
     model: car.model,
@@ -146,7 +123,7 @@ export default async function LandingPage() {
     seatingCapacity: car.seatingCapacity,
     location: car.location,
     dailyPrice: car.dailyPrice,
-    ownerName: car.owner.fullName,
+    ownerName: car.ownerName,
     photos: car.photos.length > 0
       ? [resolveListingPhotoUrl(car.photos[0])]
       : ["/images/cars/placeholder.jpg"],
@@ -159,13 +136,13 @@ export default async function LandingPage() {
     {
       quote:
         "DriveXP made hosting feel premium instead of stressful. I can finally treat my car like an asset, not just a parked expense.",
-      name: testimonialOwner?.fullName ?? "Verified Host",
+      name: testimonialOwnerName ?? "Verified Host",
       role: "Host in Metro Manila",
     },
     {
       quote:
         "The trip flow feels clean from discovery to pickup. No hidden surprises, and I knew exactly who I was booking with.",
-      name: testimonialCustomer?.fullName ?? "Renter",
+      name: testimonialCustomerName ?? "Renter",
       role: "Renter from Metro Manila",
     },
   ];
