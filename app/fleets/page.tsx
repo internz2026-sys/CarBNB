@@ -3,9 +3,8 @@ import Link from "next/link";
 import { format } from "date-fns";
 import { Building2, MapPin, ShieldCheck } from "lucide-react";
 
-import { db } from "@/lib/db";
-import { ListingStatus, OwnerStatus } from "@/types";
 import { getCurrentViewer } from "@/lib/current-user";
+import { getFleetsDirectory } from "@/lib/cached-queries";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import { UserMenu } from "@/components/layout/user-menu";
 import { FleetsMapView } from "./fleets-map-view";
@@ -28,29 +27,7 @@ function getOwnerInitials(name: string): string {
 }
 
 export default async function FleetsDirectoryPage() {
-  const fleets = await db.owner.findMany({
-    where: {
-      kind: "FLEET",
-      status: OwnerStatus.VERIFIED,
-    },
-    orderBy: { createdAt: "asc" },
-    select: {
-      id: true,
-      companyName: true,
-      fullName: true,
-      bio: true,
-      serviceArea: true,
-      latitude: true,
-      longitude: true,
-      createdAt: true,
-      _count: {
-        select: {
-          cars: { where: { status: ListingStatus.ACTIVE } },
-          managedLinks: { where: { status: "ACTIVE" } },
-        },
-      },
-    },
-  });
+  const fleets = await getFleetsDirectory();
 
   // Tier 21 — split into mapped (have lat/lng) for the map view, vs
   // unmapped which appear only in the card grid below with a subtle
@@ -65,7 +42,7 @@ export default async function FleetsDirectoryPage() {
       displayName: f.companyName ?? f.fullName,
       bio: f.bio,
       serviceArea: f.serviceArea,
-      carsCount: f._count.cars + f._count.managedLinks,
+      carsCount: f.carsCount,
       latitude: f.latitude,
       longitude: f.longitude,
     }));
@@ -158,7 +135,7 @@ export default async function FleetsDirectoryPage() {
             <div className="grid gap-6 sm:grid-cols-2">
             {fleets.map((fleet) => {
               const displayName = fleet.companyName ?? fleet.fullName;
-              const carCount = fleet._count.cars + fleet._count.managedLinks;
+              const carCount = fleet.carsCount;
               return (
                 <Link
                   className="group flex items-start gap-4 rounded-2xl bg-surface-container-lowest p-5 shadow-[0_8px_24px_rgb(19_27_46_/_0.04)] transition hover:shadow-[0_14px_36px_rgb(19_27_46_/_0.08)]"
@@ -187,7 +164,7 @@ export default async function FleetsDirectoryPage() {
                       </p>
                     ) : null}
                     <p className="mt-1 text-xs text-on-surface-variant">
-                      Member since {format(fleet.createdAt, "MMMM yyyy")} ·{" "}
+                      Member since {format(new Date(fleet.createdAt), "MMMM yyyy")} ·{" "}
                       {carCount} {carCount === 1 ? "car" : "cars"} managed
                     </p>
                     {fleet.bio ? (

@@ -2,8 +2,9 @@
 
 import { z } from "zod";
 import { redirect } from "next/navigation";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { FLEETS_CACHE_TAG, LANDING_CACHE_TAG } from "@/lib/cached-queries";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { OwnerStatus } from "@/types";
@@ -141,6 +142,10 @@ export async function createOwnerAction(
     });
 
     revalidatePath("/owners");
+    // A new VERIFIED owner bumps the landing-page verified-host count.
+    if (status === OwnerStatus.VERIFIED) {
+      revalidateTag(LANDING_CACHE_TAG, "max");
+    }
     redirect(`/owners/${owner.id}`);
   } catch (err) {
     // Rollback: delete the auth user we just created so email isn't locked.
@@ -225,6 +230,10 @@ async function updateOwnerStatus(
   revalidatePath("/owners");
   revalidatePath(`/owners/${id}`);
   revalidatePath("/dashboard");
+  // Status drives who appears in the /fleets directory (VERIFIED fleets) and
+  // the landing-page stats (verified-host count, earnings, testimonials).
+  revalidateTag(FLEETS_CACHE_TAG, "max");
+  revalidateTag(LANDING_CACHE_TAG, "max");
   return null;
 }
 
@@ -327,6 +336,12 @@ export async function updateOwnerAction(
 
   revalidatePath("/owners");
   revalidatePath(`/owners/${id}`);
+  // fullName surfaces on the /fleets directory cards and the landing-page
+  // testimonial — refresh both cached views if it (or any field) changed.
+  if (changes.length > 0) {
+    revalidateTag(FLEETS_CACHE_TAG, "max");
+    revalidateTag(LANDING_CACHE_TAG, "max");
+  }
   redirect(`/owners/${id}`);
 }
 

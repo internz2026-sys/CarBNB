@@ -1,8 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { db } from "@/lib/db";
+import { FLEETS_CACHE_TAG } from "@/lib/cached-queries";
 import { createClient } from "@/utils/supabase/server";
 import { createAdminClient } from "@/utils/supabase/admin";
 import { OWNER_DOCUMENTS_BUCKET } from "@/lib/owner-documents";
@@ -98,6 +99,9 @@ export async function updateHostBioAction(
     revalidatePath(`/hosts/${owner.id}`);
   }
   revalidatePath("/host/profile");
+  // Bio is rendered on the /fleets directory cards (VERIFIED fleets only) —
+  // bust the cached directory so an edit shows up immediately.
+  revalidateTag(FLEETS_CACHE_TAG, "max");
 
   return { saved: true };
 }
@@ -290,6 +294,8 @@ export async function updateFleetLocationAction(
   revalidatePath("/host/profile");
   revalidatePath(`/owners/${owner.id}`);
   revalidatePath("/fleets");
+  // The pin position powers the /fleets directory map — bust its cache.
+  revalidateTag(FLEETS_CACHE_TAG, "max");
 
   return { saved: true };
 }
