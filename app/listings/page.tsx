@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import type { Prisma } from "@prisma/client";
@@ -15,6 +16,12 @@ import { FilterPanel } from "./filter-panel";
 import { SortDropdown } from "./sort-dropdown";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Browse Cars | DriveXP",
+  description:
+    "Browse verified cars from trusted local hosts across Metro Manila. Filter by price, vehicle type, transmission, seats, and more.",
+};
 
 const SORT_OPTIONS = [
   { slug: "price_asc", label: "Price: Low to High" },
@@ -114,25 +121,16 @@ export default async function PublicListingsPage({
       break;
   }
 
-  // Date-range filter is the only one not expressible directly in Prisma — we
-  // need each listing's rules + exceptions + active bookings to call
-  // checkAvailability(). Fetch them inline so the in-memory filter pass below
-  // doesn't need a second round-trip.
+  // Card data only — just the fields the listing cards render. The availability
+  // relations (rules + exceptions + active bookings) are deliberately NOT
+  // fetched here: they're only needed for the date-range filter, which is the
+  // uncommon path. Loading them on every default page view over-fetches, so we
+  // pull them in a targeted second query below only when a date filter applies.
   const listings = await db.carListing.findMany({
     where,
     orderBy,
     include: {
       owner: { select: { fullName: true, status: true } },
-      availabilityRules: true,
-      exceptions: true,
-      bookings: {
-        where: {
-          status: {
-            in: [BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.ONGOING],
-          },
-        },
-        select: { pickupDate: true, returnDate: true, status: true },
-      },
       // Tier 15: surface the active fleet manager (if any) so cards can
       // render the "managed by X" dual-host label. Take 1 — the schema
       // (application-enforced) only allows one ACTIVE link per listing.
@@ -158,44 +156,69 @@ export default async function PublicListingsPage({
     for (const f of favs) favoritedIds.add(f.listingId);
   }
 
-  let filteredListings = listings;
-  let dateFilterApplied = false;
+  // Validate the requested date range up front so availability work only
+  // happens when it's actually requested and parseable.
+  let dateRange: { pickup: Date; returnDate: Date } | null = null;
   if (from && until) {
-    const pickup = new Date(`${from}T00:00:00`);
-    const ret = new Date(`${until}T00:00:00`);
-    if (
-      !Number.isNaN(pickup.getTime()) &&
-      !Number.isNaN(ret.getTime()) &&
-      pickup <= ret
-    ) {
-      dateFilterApplied = true;
-      filteredListings = listings.filter((l) => {
-        const result = checkAvailability({
-          pickup,
-          returnDate: ret,
-          rules: l.availabilityRules,
-          exceptions: l.exceptions,
-          existingBookings: l.bookings,
-        });
-        return result.ok;
-      });
+    const p = new Date(`${from}T00:00:00`);
+    const r = new Date(`${until}T00:00:00`);
+    if (!Number.isNaN(p.getTime()) && !Number.isNaN(r.getTime()) && p <= r) {
+      dateRange = { pickup: p, returnDate: r };
     }
   }
 
-  // Location chips — top distinct locations from active listings (unfiltered
-  // by current selection so the user can pivot quickly).
-  const allActive = await db.carListing.findMany({
-    where: { status: ListingStatus.ACTIVE },
-    select: { location: true },
-  });
-  const locationCounts = new Map<string, number>();
-  for (const row of allActive) {
-    locationCounts.set(row.location, (locationCounts.get(row.location) ?? 0) + 1);
+  let filteredListings = listings;
+  const dateFilterApplied = dateRange !== null;
+  if (dateRange) {
+    const { pickup, returnDate } = dateRange;
+    // Targeted availability fetch for just the candidate listings — only the
+    // rules/exceptions/active-bookings checkAvailability() needs. Date-range is
+    // the only filter Prisma can't express directly, hence the in-memory pass.
+    const availability = await db.carListing.findMany({
+      where: { id: { in: listings.map((l) => l.id) } },
+      select: {
+        id: true,
+        availabilityRules: true,
+        exceptions: true,
+        bookings: {
+          where: {
+            status: {
+              in: [
+                BookingStatus.PENDING,
+                BookingStatus.CONFIRMED,
+                BookingStatus.ONGOING,
+              ],
+            },
+          },
+          select: { pickupDate: true, returnDate: true, status: true },
+        },
+      },
+    });
+    const availabilityById = new Map(availability.map((a) => [a.id, a]));
+    filteredListings = listings.filter((l) => {
+      const a = availabilityById.get(l.id);
+      if (!a) return false;
+      return checkAvailability({
+        pickup,
+        returnDate,
+        rules: a.availabilityRules,
+        exceptions: a.exceptions,
+        existingBookings: a.bookings,
+      }).ok;
+    });
   }
-  const topLocations = [...locationCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 6)
-    .map(([loc]) => loc);
+
+  // Location chips — top distinct locations from active listings, aggregated
+  // DB-side (groupBy) instead of fetching every active row and counting them in
+  // memory. Unfiltered by current selection so the user can pivot quickly.
+  const locationGroups = await db.carListing.groupBy({
+    by: ["location"],
+    where: { status: ListingStatus.ACTIVE },
+    _count: { location: true },
+    orderBy: { _count: { location: "desc" } },
+    take: 6,
+  });
+  const topLocations = locationGroups.map((g) => g.location);
 
   // Build a chip href that preserves all OTHER params (so toggling a city
   // doesn't reset filters or dates).
